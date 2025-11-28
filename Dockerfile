@@ -144,6 +144,10 @@ RUN set -eux; \
 RUN set -eux; \
     git clone --depth 1 --branch ${ODOO_VERSION} \
         https://github.com/odoo/odoo.git /opt/odoo; \
+    # Remove /opt/odoo/addons - will be mounted from external volume
+    # Keep /opt/odoo/odoo/addons (framework addons - required)
+    rm -rf /opt/odoo/addons; \
+    mkdir -p /opt/odoo/addons; \
     chown -R odoo:odoo /opt/odoo
 
 # -----------------------------------------------------------------------------
@@ -207,7 +211,7 @@ EXPOSE 8069 8071 8072
 # -----------------------------------------------------------------------------
 # Define volumes
 # -----------------------------------------------------------------------------
-VOLUME ["/var/lib/odoo", "/mnt/extra-addons", "/var/log/odoo"]
+VOLUME ["/var/lib/odoo", "/opt/odoo/addons", "/mnt/extra-addons", "/var/log/odoo"]
 
 # -----------------------------------------------------------------------------
 # Healthcheck
