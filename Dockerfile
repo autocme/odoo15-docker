@@ -150,15 +150,18 @@ RUN set -eux; \
 # Install Odoo Python Dependencies
 # -----------------------------------------------------------------------------
 RUN set -eux; \
-    pip install --no-cache-dir --upgrade pip setuptools wheel; \
+    pip install --no-cache-dir --upgrade pip wheel; \
+    # Pin setuptools to avoid pkg_resources deprecation warning
+    pip install --no-cache-dir "setuptools<81"; \
     # Install Python 3.10 compatible versions first (before requirements.txt)
     # This prevents pip from trying to build old incompatible versions
     pip install --no-cache-dir \
+        greenlet==3.0.3 \
         gevent==23.9.1 \
         reportlab==3.6.13 \
         Pillow==9.5.0; \
     # Remove incompatible packages from requirements.txt
-    grep -v -E "^(gevent|reportlab|Pillow)==" /opt/odoo/requirements.txt > /tmp/requirements-filtered.txt; \
+    grep -v -E "^(gevent|reportlab|Pillow|greenlet)==" /opt/odoo/requirements.txt > /tmp/requirements-filtered.txt; \
     # Install remaining requirements (incompatible ones already satisfied)
     pip install --no-cache-dir -r /tmp/requirements-filtered.txt; \
     # Install additional common dependencies for Odoo 15
