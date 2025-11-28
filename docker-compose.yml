@@ -77,8 +77,8 @@ services:
       # Admin password (change in production!)
       conf.admin_passwd: admin_secure_password_change_me
 
-      # Addons paths
-      conf.addons_path: /opt/odoo/addons,/opt/odoo/odoo/addons,/mnt/extra-addons
+      # Addons paths (Framework addons MUST be first!)
+      conf.addons_path: /opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons
 
       # Data directory
       conf.data_dir: /var/lib/odoo
