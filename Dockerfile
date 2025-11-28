@@ -151,11 +151,13 @@ RUN set -eux; \
 # -----------------------------------------------------------------------------
 RUN set -eux; \
     pip install --no-cache-dir --upgrade pip setuptools wheel; \
-    # Remove gevent from requirements.txt temporarily (old version incompatible with Python 3.10)
-    grep -v "^gevent==" /opt/odoo/requirements.txt > /tmp/requirements-no-gevent.txt; \
-    pip install --no-cache-dir -r /tmp/requirements-no-gevent.txt; \
-    # Install gevent with a version compatible with Python 3.10
+    # Install gevent first with Python 3.10 compatible version
+    # This ensures other packages that depend on gevent use the correct version
     pip install --no-cache-dir gevent==23.9.1; \
+    # Remove old gevent from requirements.txt (incompatible with Python 3.10)
+    grep -v "^gevent==" /opt/odoo/requirements.txt > /tmp/requirements-no-gevent.txt; \
+    # Install remaining requirements (gevent already satisfied)
+    pip install --no-cache-dir -r /tmp/requirements-no-gevent.txt; \
     # Install additional common dependencies for Odoo 15
     pip install --no-cache-dir \
         phonenumbers \
