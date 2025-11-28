@@ -21,9 +21,8 @@ A production-grade Docker image for Odoo 15 with **click-odoo** integration for 
 ### 1. Clone or Create Project Structure
 
 ```bash
-mkdir odoo15-docker
+git clone git@github.com:autocme/odoo15-docker.git
 cd odoo15-docker
-# Add Dockerfile, entrypoint.sh, docker-compose.yml (see below)
 ```
 
 ### 2. Build the Image
