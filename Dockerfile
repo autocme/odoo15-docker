@@ -140,13 +140,14 @@ RUN set -eux; \
 
 # -----------------------------------------------------------------------------
 # Clone Odoo 15 Source Code
+# Using autocme/odoo-core - optimized minimal Odoo core without addons/docs/tests
 # -----------------------------------------------------------------------------
 RUN set -eux; \
     git clone --depth 1 --branch ${ODOO_VERSION} \
-        https://github.com/odoo/odoo.git /opt/odoo; \
-    # Remove /opt/odoo/addons - will be mounted from external volume
-    # Keep /opt/odoo/odoo/addons (framework addons - required)
-    rm -rf /opt/odoo/addons; \
+        https://github.com/autocme/odoo-core.git /opt/odoo; \
+    # Note: This repo already excludes /opt/odoo/addons
+    # Only contains /opt/odoo/odoo (framework) which is required
+    # Create addons directory for external volume mount
     mkdir -p /opt/odoo/addons; \
     chown -R odoo:odoo /opt/odoo
 

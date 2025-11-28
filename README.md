@@ -7,14 +7,16 @@ A production-grade Docker image for Odoo 15 with **click-odoo** integration for 
 ## Features
 
 - **Based on Python 3.10-slim** - Lightweight and secure base image
-- **Odoo 15 Community Edition** - Full source code installation
+- **Optimized Odoo Core** - Uses [autocme/odoo-core](https://github.com/autocme/odoo-core) - minimal Odoo framework without addons/docs/tests (80% smaller)
+- **Shared Addons Architecture** - Addons managed externally via volume mounts for better scalability
+- **GitHubSyncer Integration** - Automated addon updates from GitHub repositories
 - **click-odoo-initdb** - Automated database creation with module installation
 - **click-odoo-update** - Automatic module upgrade on every container restart
 - **Dynamic Configuration** - Generate Odoo config via `conf.*` environment variables
 - **One-Time Package Installation** - Install Python/NPM packages via environment variables
 - **PUID/PGID Support** - Flexible file permission management
 - **Docker Healthcheck** - Built-in health monitoring
-- **Production Ready** - Optimized for SaaS environments
+- **Production Ready** - Optimized for SaaS and multi-tenant environments
 
 ## Quick Start
 
@@ -52,12 +54,23 @@ Open your browser and navigate to: `http://localhost:8069`
 
 ```
 odoo15-docker/
-├── Dockerfile           # Main Docker image definition
-├── entrypoint.sh        # Container entrypoint with startup logic
-├── docker-compose.yml   # Example production stack configuration
-├── README.md            # This documentation
-└── extra-addons/        # Mount point for custom Odoo modules
+├── Dockerfile                              # Main Docker image definition
+├── entrypoint.sh                           # Container entrypoint with startup logic
+├── docker-compose.yml                      # Basic production stack
+├── docker-compose.githubsyncer.example.yml # GitHubSyncer integration example
+├── ADDONS_STRUCTURE.md                     # Addons organization guide
+├── README.md                               # This documentation
+└── extra-addons/                           # Mount point for custom Odoo modules
 ```
+
+### Architecture Overview
+
+This image is designed for **scalable, multi-container deployments**:
+
+- **Odoo Core** ([autocme/odoo-core](https://github.com/autocme/odoo-core)): Minimal framework (~100MB vs ~500MB)
+- **Addons**: Managed externally via shared volumes (see `ADDONS_STRUCTURE.md`)
+- **GitHubSyncer**: Automated addon synchronization from GitHub (optional)
+- **Configuration**: Environment-based via `conf.*` variables
 
 ## Configuration Reference
 
