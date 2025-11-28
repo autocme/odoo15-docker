@@ -116,9 +116,10 @@ RUN set -eux; \
 
 # -----------------------------------------------------------------------------
 # Install Node.js and npm (LTS version for Odoo 15 compatibility)
+# Using Node.js 20 LTS (current stable LTS, compatible with Odoo 15)
 # -----------------------------------------------------------------------------
 RUN set -eux; \
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -; \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -; \
     apt-get install -y --no-install-recommends nodejs; \
     npm install -g npm@latest; \
     rm -rf /var/lib/apt/lists/*
