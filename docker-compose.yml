@@ -1,0 +1,153 @@
+# =============================================================================
+# Docker Compose for Odoo 15 Production Stack
+# =============================================================================
+# This compose file sets up a complete Odoo 15 production environment with:
+# - PostgreSQL 14 database
+# - Odoo 15 application with click-odoo auto-upgrade
+# - Persistent volumes for data and addons
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database Service
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:14-alpine
+    container_name: odoo15-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data/pgdata
+    networks:
+      - odoo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Odoo 15 Application Service
+  # ---------------------------------------------------------------------------
+  odoo:
+    image: jaah/odoo:15
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: odoo15-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8069:8069"
+      - "8071:8071"   # Longpolling port
+      - "8072:8072"   # Websocket port
+    volumes:
+      # Persistent data volume (contains filestore, sessions, state files)
+      - odoo-data:/var/lib/odoo
+      # Extra addons directory (mount your custom modules here)
+      - ./extra-addons:/mnt/extra-addons:ro
+      # Odoo logs (optional, can also use docker logs)
+      - odoo-logs:/var/log/odoo
+    environment:
+      # -----------------------------------------------------------------------
+      # User/Group IDs for file permissions
+      # -----------------------------------------------------------------------
+      PUID: 1000
+      PGID: 1000
+
+      # -----------------------------------------------------------------------
+      # Odoo Configuration (conf.* -> /etc/odoo/erp.conf)
+      # -----------------------------------------------------------------------
+      # Database connection
+      conf.db_host: db
+      conf.db_port: 5432
+      conf.db_user: odoo
+      conf.db_password: odoo
+      conf.db_name: False
+      conf.db_template: template0
+
+      # Admin password (change in production!)
+      conf.admin_passwd: admin_secure_password_change_me
+
+      # Addons paths
+      conf.addons_path: /opt/odoo/addons,/opt/odoo/odoo/addons,/mnt/extra-addons
+
+      # Data directory
+      conf.data_dir: /var/lib/odoo
+
+      # Logging
+      conf.logfile: /var/log/odoo/odoo.log
+      conf.log_level: info
+      conf.log_handler: :INFO
+
+      # HTTP settings
+      conf.http_port: 8069
+      conf.longpolling_port: 8072
+      conf.proxy_mode: True
+      conf.workers: 4
+      conf.max_cron_threads: 2
+
+      # Limits
+      conf.limit_memory_hard: 2684354560
+      conf.limit_memory_soft: 2147483648
+      conf.limit_time_cpu: 600
+      conf.limit_time_real: 1200
+      conf.limit_time_real_cron: 0
+
+      # -----------------------------------------------------------------------
+      # Database Initialization (click-odoo-initdb)
+      # -----------------------------------------------------------------------
+      # Creates the database 'odoo_prod' with base modules installed
+      # --unless-initialized prevents re-initialization on restart
+      INITDB_OPTIONS: "-n odoo_prod -m base,web --unless-initialized"
+
+      # -----------------------------------------------------------------------
+      # Auto-Upgrade Configuration (click-odoo-update)
+      # -----------------------------------------------------------------------
+      # Enable automatic module upgrade on every container restart
+      AUTO_UPGRADE: "TRUE"
+      # Database name for auto-upgrade
+      ODOO_DB_NAME: odoo_prod
+
+      # -----------------------------------------------------------------------
+      # One-Time Package Installation
+      # -----------------------------------------------------------------------
+      # Python packages (comma-separated, installed once per volume)
+      PY_INSTALL: "phonenumbers,python-stdnum,num2words"
+      
+      # NPM packages (comma-separated, installed once per volume)
+      NPM_INSTALL: "rtlcss,less"
+
+    networks:
+      - odoo-network
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # PostgreSQL data
+  odoo-db-data:
+    driver: local
+
+  # Odoo data (filestore, sessions, .state directory)
+  odoo-data:
+    driver: local
+
+  # Odoo logs
+  odoo-logs:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  odoo-network:
+    driver: bridge
