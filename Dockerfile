@@ -60,6 +60,11 @@ RUN set -eux; \
         libtiff5-dev \
         libwebp-dev \
         libopenjp2-7-dev \
+        # Text rendering (for complex scripts and RTL languages like Arabic)
+        libharfbuzz-dev \
+        libfribidi-dev \
+        # X11 dependencies
+        libxcb1-dev \
         # Fonts (for PDF generation)
         fonts-liberation \
         fonts-dejavu-core \
@@ -79,8 +84,23 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 # -----------------------------------------------------------------------------
+# Install libssl1.1 (required by wkhtmltopdf but not available in newer Debian)
+# We install it from Debian Bullseye (oldstable) repository
+# -----------------------------------------------------------------------------
+RUN set -eux; \
+    # Add Debian Bullseye repository for libssl1.1
+    echo "deb http://deb.debian.org/debian bullseye main" > /etc/apt/sources.list.d/bullseye.list; \
+    # Set lower priority for bullseye to avoid unintended upgrades
+    echo "Package: *\nPin: release n=bullseye\nPin-Priority: 100" > /etc/apt/preferences.d/bullseye; \
+    apt-get update; \
+    # Install libssl1.1 from bullseye
+    apt-get install -y --no-install-recommends libssl1.1; \
+    rm -rf /var/lib/apt/lists/*
+
+# -----------------------------------------------------------------------------
 # Install wkhtmltopdf (compatible version for Odoo 15)
 # Using the Debian Bullseye build which works well with Odoo 15
+# Now that libssl1.1 is installed, wkhtmltopdf will work correctly
 # -----------------------------------------------------------------------------
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \
