@@ -32,6 +32,7 @@ services:
 
   # ---------------------------------------------------------------------------
   # GitHubSyncer - Manages Odoo Addons from GitHub
+  # Syncs autocme/odoo-core-addons repository to shared volume
   # ---------------------------------------------------------------------------
   githubsyncer:
     image: autocme/githubsyncer:latest
@@ -50,8 +51,8 @@ services:
       - "5000:5000"    # Web UI
       - "8200:8200"    # GitHub Webhook
     volumes:
-      # Shared addons storage - GitHubSyncer pulls repos here
-      - odoo-addons-shared:/app/repos/odoo-addons
+      # Shared addons storage - GitHubSyncer pulls odoo-core-addons here
+      - odoo-addons-shared:/app/repos
 
       # Docker socket for container management
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -126,7 +127,7 @@ services:
       # Admin password
       conf.admin_passwd: admin_secure_password_change_me
 
-      # Addons paths - Framework + Shared Core only
+      # Addons paths - Framework + odoo-core-addons from GitHubSyncer
       conf.addons_path: "/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons"
 
       # Data directory
