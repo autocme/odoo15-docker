@@ -52,8 +52,13 @@ services:
     volumes:
       # Persistent data volume (contains filestore, sessions, state files)
       - odoo-data:/var/lib/odoo
+
+      # Odoo core addons from GitHubSyncer (READ-ONLY!)
+      - githubsyncer_repo_storage:/mnt/synced-addons:ro
+
       # Extra addons directory (mount your custom modules here)
       - ./extra-addons:/mnt/extra-addons:ro
+
       # Odoo logs (optional, can also use docker logs)
       - odoo-logs:/var/log/odoo
     environment:
@@ -78,7 +83,10 @@ services:
       conf.admin_passwd: admin_secure_password_change_me
 
       # Addons paths (Framework addons MUST be first!)
-      conf.addons_path: /opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons
+      # /opt/odoo/odoo/addons        - Framework (in image)
+      # /mnt/synced-addons/odoo-core-addons - Community addons (from GitHubSyncer)
+      # /mnt/extra-addons            - Custom addons
+      conf.addons_path: "/opt/odoo/odoo/addons,/mnt/synced-addons/odoo-core-addons,/mnt/extra-addons"
 
       # Data directory
       conf.data_dir: /var/lib/odoo
@@ -145,6 +153,10 @@ volumes:
   # Odoo logs
   odoo-logs:
     driver: local
+
+  # GitHubSyncer addons storage (external - managed by GitHubSyncer)
+  githubsyncer_repo_storage:
+    external: true
 
 # =============================================================================
 # Networks
