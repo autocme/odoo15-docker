@@ -105,17 +105,18 @@ services:
       # -----------------------------------------------------------------------
       # Database Initialization (click-odoo-initdb)
       # -----------------------------------------------------------------------
-      # Creates the database 'odoo_prod' with base modules installed
-      # --unless-initialized prevents re-initialization on restart
-      INITDB_OPTIONS: "-n odoo_prod -m base,web --unless-initialized"
+      # Disabled by default - create database manually from Odoo UI
+      # To enable: set database name and modules, e.g.:
+      # INITDB_OPTIONS: "-n odoo_prod -m base,web --unless-initialized"
+      INITDB_OPTIONS: ""
 
       # -----------------------------------------------------------------------
       # Auto-Upgrade Configuration (click-odoo-update)
       # -----------------------------------------------------------------------
-      # Enable automatic module upgrade on every container restart
-      AUTO_UPGRADE: "TRUE"
-      # Database name for auto-upgrade
-      ODOO_DB_NAME: odoo_prod
+      # Disabled by default - upgrade manually when needed
+      # To enable: set AUTO_UPGRADE=TRUE and specify database name
+      AUTO_UPGRADE: "FALSE"
+      ODOO_DB_NAME: ""
 
       # -----------------------------------------------------------------------
       # One-Time Package Installation

@@ -53,20 +53,38 @@ docker compose -f docker-compose.githubsyncer.example.yml logs -f odoo-basic
 
 ---
 
-### **Step 3: Verify**
+### **Step 3: Verify Addons**
 
 ```bash
-# 1. Check addons are present
-docker exec odoo15-basic ls -la /opt/odoo/addons
+# Check addons are present in container
+docker exec odoo15-basic ls /opt/odoo/addons | wc -l
+# Should show: 435
 
-# Should show 435 directories:
-# account, sale, purchase, crm, website, pos, hr, l10n_*, etc.
+# List some modules
+docker exec odoo15-basic ls /opt/odoo/addons
+# Should show: account, sale, purchase, crm, website, pos, hr, l10n_*, etc.
+```
 
-# 2. Access Odoo
+### **Step 4: Create Database from Odoo UI**
+
+```bash
+# 1. Access Odoo
 open http://localhost:8069
 
-# 3. Create database
-# Use Odoo UI to create database with modules you need
+# 2. You'll see "Create Database" screen
+# Fill in:
+#   - Master Password: admin_secure_password_change_me (from docker-compose.yml)
+#   - Database Name: my_company_db
+#   - Email: admin@example.com
+#   - Password: (your admin password)
+#   - Language: English (or your preference)
+#   - Country: (your country)
+#   - Demo Data: uncheck for production
+
+# 3. Click "Create Database"
+# Wait 1-2 minutes for initialization
+
+# 4. You'll be logged in with all 435 modules available!
 ```
 
 ---

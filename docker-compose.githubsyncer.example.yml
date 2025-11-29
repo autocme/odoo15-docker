@@ -150,12 +150,12 @@ services:
       conf.limit_time_cpu: 600
       conf.limit_time_real: 1200
 
-      # Database Initialization
-      INITDB_OPTIONS: "-n odoo_basic -m base,web --unless-initialized"
+      # Database Initialization (disabled - create from Odoo UI after addons are synced)
+      INITDB_OPTIONS: ""
 
-      # Auto-Upgrade
-      AUTO_UPGRADE: "TRUE"
-      ODOO_DB_NAME: odoo_basic
+      # Auto-Upgrade (disabled by default)
+      AUTO_UPGRADE: "FALSE"
+      ODOO_DB_NAME: ""
     networks:
       - odoo-network
     labels:
@@ -229,12 +229,12 @@ services:
       conf.limit_time_cpu: 600
       conf.limit_time_real: 1200
 
-      # Database Initialization
-      INITDB_OPTIONS: "-n odoo_full -m base,web --unless-initialized"
+      # Database Initialization (disabled - create from Odoo UI after addons are synced)
+      INITDB_OPTIONS: ""
 
-      # Auto-Upgrade
-      AUTO_UPGRADE: "TRUE"
-      ODOO_DB_NAME: odoo_full
+      # Auto-Upgrade (disabled by default)
+      AUTO_UPGRADE: "FALSE"
+      ODOO_DB_NAME: ""
     networks:
       - odoo-network
     labels:
