@@ -191,8 +191,9 @@ RUN set -eux; \
 
 # -----------------------------------------------------------------------------
 # Set Odoo in PYTHONPATH so 'import odoo' works for click-odoo
+# Use ${PYTHONPATH:-} for default empty value to avoid buildkit warning
 # -----------------------------------------------------------------------------
-ENV PYTHONPATH="${ODOO_SOURCE}"
+ENV PYTHONPATH="${ODOO_SOURCE}:${PYTHONPATH:-}"
 
 # -----------------------------------------------------------------------------
 # Copy entrypoint script
