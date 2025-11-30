@@ -261,7 +261,7 @@ AUTO_UPGRADE: "FALSE"
 - In production, you may want to run upgrades manually during maintenance windows
 - For multi-database setups, specify `ODOO_DB_NAME` explicitly
 
-### One-Time Package Installation
+### Runtime Package Installation
 
 #### Python Packages (`PY_INSTALL`)
 
@@ -270,10 +270,20 @@ PY_INSTALL: "asn1crypto,Babel==2.9.1,phonenumbers"
 ```
 
 **Behavior:**
-- Packages are installed via `pip install`
-- Only runs once per volume instance
-- State tracked in `/var/lib/odoo/.state/py_install.done`
-- Subsequent restarts skip installation if state file exists
+- **Stateless checking** - verifies packages on every startup (no state files)
+- Checks if each package is installed with the correct version using `pip show`
+- Only installs/upgrades if needed (smart detection)
+- Supports version pinning (`package==version`) or latest (`package`)
+- Fast - skips installation if all packages already present
+
+**Log Output Example:**
+```
+[INFO] Checking Python packages: phonenumbers,python-stdnum,num2words...
+[INFO]   ✓ phonenumbers already installed (version: 9.0.19)
+[INFO]   ✓ python-stdnum already installed (version: 1.13)
+[INFO]   ✓ num2words already installed (version: 0.5.6)
+[INFO] All Python packages already installed.
+```
 
 #### NPM Packages (`NPM_INSTALL`)
 
@@ -282,12 +292,24 @@ NPM_INSTALL: "rtlcss,less"
 ```
 
 **Behavior:**
-- Packages are installed globally via `npm install -g`
-- Only runs once per volume instance
-- State tracked in `/var/lib/odoo/.state/npm_install.done`
-- Subsequent restarts skip installation if state file exists
+- **Stateless checking** - verifies packages on every startup (no state files)
+- Checks global package installation using `npm list -g`
+- Only installs if packages are missing
+- Fast - skips installation if all packages already present
 
-**Note:** Since `/var/lib/odoo` is typically a Docker volume, the state files persist across container recreations, ensuring packages are only installed once.
+**Log Output Example:**
+```
+[INFO] Checking NPM packages: rtlcss,less...
+[INFO]   ✓ rtlcss already installed (version: 4.1.1)
+[INFO]   ✓ less already installed (version: 4.2.0)
+[INFO] All NPM packages already installed.
+```
+
+**Why Stateless?**
+- No state files means cleaner `/var/lib/odoo` (only application data)
+- Works correctly when switching between image versions
+- Always validates actual installation status vs relying on stale markers
+- Better for ephemeral containers and CI/CD pipelines
 
 ### User Permissions (`PUID`/`PGID`)
 
@@ -461,15 +483,21 @@ docker compose exec odoo bash
 docker compose exec odoo cat /etc/odoo/erp.conf
 ```
 
-### Reset State Files
+### Force Package Reinstallation
 
-To re-run package installations:
+Packages are checked on every startup. To force reinstallation:
 
 ```bash
-docker compose exec odoo rm -f /var/lib/odoo/.state/py_install.done
-docker compose exec odoo rm -f /var/lib/odoo/.state/npm_install.done
+# For Python packages - uninstall then restart
+docker compose exec odoo pip uninstall -y phonenumbers python-stdnum num2words
+docker compose restart odoo
+
+# For NPM packages - uninstall then restart
+docker compose exec odoo npm uninstall -g rtlcss less
 docker compose restart odoo
 ```
+
+**Note:** With stateless checking, simply restarting will reinstall missing packages automatically.
 
 ### Database Issues
 

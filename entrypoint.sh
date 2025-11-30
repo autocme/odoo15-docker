@@ -12,7 +12,6 @@ set -euo pipefail
 ERP_CONF_PATH="${ERP_CONF_PATH:-/etc/odoo/erp.conf}"
 ODOO_DATA_DIR="${ODOO_DATA_DIR:-/var/lib/odoo}"
 ODOO_SOURCE="${ODOO_SOURCE:-/opt/odoo}"
-STATE_DIR="${ODOO_DATA_DIR}/.state"
 PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
 
@@ -60,10 +59,6 @@ setup_user_permissions() {
     chown -R odoo:odoo /var/log/odoo || true
     chown -R odoo:odoo /mnt/extra-addons 2>/dev/null || true
 
-    # Ensure state directory exists
-    mkdir -p "$STATE_DIR"
-    chown odoo:odoo "$STATE_DIR"
-
     log_info "User permissions configured successfully."
 }
 
@@ -100,12 +95,11 @@ generate_config() {
 }
 
 # -----------------------------------------------------------------------------
-# Step 3: One-Time Python Package Installation (PY_INSTALL)
-# Only runs once per instance (state tracked in volume)
+# Step 3: Python Package Installation (PY_INSTALL)
+# Checks if packages are installed at each startup (stateless)
 # -----------------------------------------------------------------------------
 install_python_packages() {
     local py_install="${PY_INSTALL:-}"
-    local state_file="${STATE_DIR}/py_install.done"
 
     # Skip if PY_INSTALL is empty
     if [ -z "$py_install" ]; then
@@ -113,36 +107,67 @@ install_python_packages() {
         return 0
     fi
 
-    # Skip if already installed (state file exists)
-    if [ -f "$state_file" ]; then
-        log_info "Python packages already installed (found ${state_file}), skipping."
-        return 0
-    fi
+    log_info "Checking Python packages: ${py_install}..."
 
-    log_info "Installing Python packages: ${py_install}..."
+    # Check each package to see if it needs installation
+    local needs_install=false
+    IFS=',' read -ra PKG_ARRAY <<< "$py_install"
 
-    # Convert comma-separated list to space-separated for pip
-    local packages="${py_install//,/ }"
+    for pkg in "${PKG_ARRAY[@]}"; do
+        pkg=$(echo "$pkg" | xargs)  # Trim whitespace
 
-    # Install packages
-    if pip install --no-cache-dir $packages; then
-        # Mark as done
-        touch "$state_file"
-        chown odoo:odoo "$state_file"
-        log_info "Python packages installed successfully."
+        if [ -z "$pkg" ]; then
+            continue
+        fi
+
+        # Extract package name and version if specified
+        if [[ "$pkg" == *"=="* ]]; then
+            local pkg_name="${pkg%%==*}"
+            local pkg_version="${pkg#*==}"
+
+            # Check if installed with correct version
+            if pip show "$pkg_name" 2>/dev/null | grep -q "Version: $pkg_version"; then
+                log_info "  ✓ $pkg already installed"
+            else
+                log_info "  ✗ $pkg needs installation/upgrade"
+                needs_install=true
+            fi
+        else
+            # No version specified, just check if installed
+            if pip show "$pkg" &>/dev/null; then
+                local installed_version=$(pip show "$pkg" 2>/dev/null | grep "Version:" | awk '{print $2}')
+                log_info "  ✓ $pkg already installed (version: $installed_version)"
+            else
+                log_info "  ✗ $pkg needs installation"
+                needs_install=true
+            fi
+        fi
+    done
+
+    # Install only if needed
+    if [ "$needs_install" = true ]; then
+        log_info "Installing Python packages: ${py_install}..."
+
+        # Convert comma-separated list to space-separated for pip
+        local packages="${py_install//,/ }"
+
+        if pip install --no-cache-dir $packages; then
+            log_info "Python packages installed successfully."
+        else
+            log_error "Failed to install Python packages!"
+            return 1
+        fi
     else
-        log_error "Failed to install Python packages!"
-        return 1
+        log_info "All Python packages already installed."
     fi
 }
 
 # -----------------------------------------------------------------------------
-# Step 4: One-Time NPM Package Installation (NPM_INSTALL)
-# Only runs once per instance (state tracked in volume)
+# Step 4: NPM Package Installation (NPM_INSTALL)
+# Checks if packages are installed at each startup (stateless)
 # -----------------------------------------------------------------------------
 install_npm_packages() {
     local npm_install="${NPM_INSTALL:-}"
-    local state_file="${STATE_DIR}/npm_install.done"
 
     # Skip if NPM_INSTALL is empty
     if [ -z "$npm_install" ]; then
@@ -150,26 +175,45 @@ install_npm_packages() {
         return 0
     fi
 
-    # Skip if already installed (state file exists)
-    if [ -f "$state_file" ]; then
-        log_info "NPM packages already installed (found ${state_file}), skipping."
-        return 0
-    fi
+    log_info "Checking NPM packages: ${npm_install}..."
 
-    log_info "Installing NPM packages: ${npm_install}..."
+    # Check each package to see if it needs installation
+    local needs_install=false
+    IFS=',' read -ra PKG_ARRAY <<< "$npm_install"
 
-    # Convert comma-separated list to space-separated for npm
-    local packages="${npm_install//,/ }"
+    for pkg in "${PKG_ARRAY[@]}"; do
+        pkg=$(echo "$pkg" | xargs)  # Trim whitespace
 
-    # Install packages globally
-    if npm install -g $packages; then
-        # Mark as done
-        touch "$state_file"
-        chown odoo:odoo "$state_file"
-        log_info "NPM packages installed successfully."
+        if [ -z "$pkg" ]; then
+            continue
+        fi
+
+        # Check if package is installed globally
+        if npm list -g "$pkg" --depth=0 &>/dev/null; then
+            local installed_version=$(npm list -g "$pkg" --depth=0 2>/dev/null | grep "$pkg" | sed -n 's/.*@\([0-9.]*\).*/\1/p')
+            log_info "  ✓ $pkg already installed (version: $installed_version)"
+        else
+            log_info "  ✗ $pkg needs installation"
+            needs_install=true
+        fi
+    done
+
+    # Install only if needed
+    if [ "$needs_install" = true ]; then
+        log_info "Installing NPM packages: ${npm_install}..."
+
+        # Convert comma-separated list to space-separated for npm
+        local packages="${npm_install//,/ }"
+
+        # Install packages globally
+        if npm install -g $packages; then
+            log_info "NPM packages installed successfully."
+        else
+            log_error "Failed to install NPM packages!"
+            return 1
+        fi
     else
-        log_error "Failed to install NPM packages!"
-        return 1
+        log_info "All NPM packages already installed."
     fi
 }
 
