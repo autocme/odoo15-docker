@@ -211,8 +211,9 @@ EXPOSE 8069 8071 8072
 
 # -----------------------------------------------------------------------------
 # Define volumes
+# Note: /opt/odoo/addons removed - we use /mnt/synced-addons from GitHubSyncer
 # -----------------------------------------------------------------------------
-VOLUME ["/var/lib/odoo", "/opt/odoo/addons", "/mnt/extra-addons", "/var/log/odoo"]
+VOLUME ["/var/lib/odoo", "/mnt/extra-addons", "/var/log/odoo"]
 
 # -----------------------------------------------------------------------------
 # Healthcheck
