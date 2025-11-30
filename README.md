@@ -220,14 +220,36 @@ AUTO_UPGRADE: "TRUE"              # Default - can be set to FALSE to disable
 - **Enabled by default** - runs on every container restart
 - **Auto-detects database** - finds the first non-system database automatically
 - `ODOO_DB_NAME` is **optional** - only specify if you have multiple databases
+- **Pre-upgrade check** - lists modules to upgrade before starting (using `--list-only`)
+- **Translation updates** - uses `--i18n-overwrite` to keep translations up-to-date
 - click-odoo-update uses internal module hashing to detect changes
 - Only modules that have actually changed are upgraded
 - No custom version state is maintained - relies entirely on click-odoo-update's logic
+
+**Upgrade Process:**
+1. **Check phase** - Lists all modules that need upgrading (non-destructive)
+2. **Upgrade phase** - Only runs if modules need updating
+3. **Translation sync** - Overwrites existing translations with updated ones
 
 **Database Auto-Detection:**
 - Automatically finds the first Odoo database (excluding `postgres`, `template0`, `template1`)
 - Perfect for single-database setups (most common use case)
 - Skips upgrade gracefully if no database exists yet
+
+**Log Output Example:**
+```
+[INFO] 2025-11-30 05:06:11 - Checking for modules that need upgrade in database: production...
+[INFO] 2025-11-30 05:06:11 - === Modules to be upgraded ===
+INFO  Modules to update: sale, purchase, stock
+[INFO] 2025-11-30 05:06:11 - === End of modules list ===
+[INFO] 2025-11-30 05:06:11 - Running automatic upgrade with translation overwrite...
+[INFO] 2025-11-30 05:06:25 - Automatic upgrade completed successfully.
+```
+
+**If No Modules Need Upgrading:**
+```
+[INFO] 2025-11-30 05:06:11 - No modules need upgrading. System is up-to-date.
+```
 
 **To Disable:**
 ```yaml

@@ -241,16 +241,35 @@ run_auto_upgrade() {
         log_info "Auto-detected database: ${db_name}"
     fi
 
-    log_info "Running click-odoo-update for database: ${db_name}..."
+    log_info "Checking for modules that need upgrade in database: ${db_name}..."
 
-    # Run click-odoo-update as odoo user
-    # click-odoo-update handles module hashing internally and only upgrades changed modules
-    if gosu odoo click-odoo-update -c "$ERP_CONF_PATH" -d "$db_name"; then
-        log_info "Automatic upgrade completed successfully."
+    # First, list modules that will be upgraded (without actually upgrading)
+    # This gives visibility into what changes will be applied
+    log_info "=== Modules to be upgraded ==="
+    if gosu odoo click-odoo-update -c "$ERP_CONF_PATH" -d "$db_name" --list-only 2>&1 | tee /tmp/upgrade-list.log; then
+        log_info "=== End of modules list ==="
+
+        # Check if there are any modules to upgrade
+        if grep -q "to update" /tmp/upgrade-list.log 2>/dev/null; then
+            log_info "Running automatic upgrade with translation overwrite..."
+
+            # Run actual upgrade with --i18n-overwrite to update translations
+            # This ensures translations are kept up-to-date with module changes
+            if gosu odoo click-odoo-update -c "$ERP_CONF_PATH" -d "$db_name" --i18n-overwrite; then
+                log_info "Automatic upgrade completed successfully."
+            else
+                local exit_code=$?
+                log_warn "click-odoo-update exited with code ${exit_code}. Continuing startup..."
+            fi
+        else
+            log_info "No modules need upgrading. System is up-to-date."
+        fi
     else
-        local exit_code=$?
-        log_warn "click-odoo-update exited with code ${exit_code}. Continuing startup..."
+        log_warn "Failed to check modules list. Skipping upgrade."
     fi
+
+    # Cleanup
+    rm -f /tmp/upgrade-list.log
 }
 
 # -----------------------------------------------------------------------------
