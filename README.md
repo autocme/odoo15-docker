@@ -18,6 +18,73 @@ A production-grade Docker image for Odoo 15 with **click-odoo** integration for 
 - **Docker Healthcheck** - Built-in health monitoring
 - **Production Ready** - Optimized for SaaS and multi-tenant environments
 
+## Installation Steps
+
+This setup requires **GitHubSyncer** to manage Odoo addons. Follow these steps in order:
+
+### Step 1: Setup GitHubSyncer
+
+GitHubSyncer manages addon repositories and syncs them to shared Docker volumes.
+
+```bash
+# Clone GitHubSyncer repository
+git clone https://github.com/autocme/GitHubSyncer.git
+cd GitHubSyncer
+
+# Start GitHubSyncer
+docker compose up -d
+
+# Access GitHubSyncer UI
+# Open http://localhost:3000 in your browser
+```
+
+### Step 2: Add Odoo Addons Repository to GitHubSyncer
+
+Add the official Odoo community addons repository:
+
+1. Open GitHubSyncer UI at `http://localhost:3000`
+2. Click **"Add Repository"**
+3. Enter repository details:
+   - **Repository URL:** `https://github.com/autocme/odoo-core-addons`
+   - **Branch:** `15.0`
+   - **Name:** `odoo-core-addons`
+4. Click **"Save"**
+5. Click **"Sync Now"** to pull the addons (435 modules, ~740MB)
+6. Wait for sync to complete
+
+**Note:** The addons will be stored in the `githubsyncer_repo_storage` Docker volume.
+
+### Step 3: Setup and Start Odoo
+
+```bash
+# Clone this repository
+git clone https://github.com/autocme/odoo15-docker.git
+cd odoo15-docker
+
+# Create extra-addons directory for custom modules
+mkdir -p extra-addons
+
+# Build the Odoo image
+docker compose build
+
+# Start Odoo (connects to GitHubSyncer volume automatically)
+docker compose up -d
+
+# View logs
+docker compose logs -f odoo
+```
+
+### Step 4: Create Database and Access Odoo
+
+1. Open your browser and navigate to: `http://localhost:8069`
+2. Create a new database from the UI
+3. All **435 community modules** from `odoo-core-addons` will be available!
+
+**Addons Path:**
+- `/opt/odoo/odoo/addons` - Framework modules (built into image)
+- `/mnt/synced-addons/odoo-core-addons` - Community modules (from GitHubSyncer)
+- `/mnt/extra-addons` - Your custom modules
+
 ## Quick Start
 
 ### 1. Clone or Create Project Structure
