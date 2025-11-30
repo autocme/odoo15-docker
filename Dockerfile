@@ -192,7 +192,7 @@ RUN set -eux; \
 # -----------------------------------------------------------------------------
 # Set Odoo in PYTHONPATH so 'import odoo' works for click-odoo
 # -----------------------------------------------------------------------------
-ENV PYTHONPATH="${ODOO_SOURCE}:${PYTHONPATH}"
+ENV PYTHONPATH="${ODOO_SOURCE}"
 
 # -----------------------------------------------------------------------------
 # Copy entrypoint script
