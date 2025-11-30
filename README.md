@@ -147,7 +147,7 @@ environment:
   conf.db_user: odoo
   conf.db_password: odoo
   conf.addons_path: /opt/odoo/odoo/addons,/mnt/synced-addons/odoo-core-addons,/mnt/extra-addons
-  conf.logfile: /var/log/odoo/odoo.log
+  conf.logfile: /var/lib/odoo/logs/odoo.log
   conf.workers: 4
   conf.proxy_mode: True
 ```
@@ -162,7 +162,7 @@ db_port = 5432
 db_user = odoo
 db_password = odoo
 addons_path = /opt/odoo/odoo/addons,/mnt/synced-addons/odoo-core-addons,/mnt/extra-addons
-logfile = /var/log/odoo/odoo.log
+logfile = /var/lib/odoo/logs/odoo.log
 workers = 4
 proxy_mode = True
 ```
@@ -330,10 +330,9 @@ If your host user has UID 1001, set `PUID=1001` to avoid permission issues with 
 
 | Path | Purpose |
 |------|---------|
-| `/var/lib/odoo` | Odoo data (filestore, sessions, state files) |
+| `/var/lib/odoo` | Odoo data (filestore, sessions, logs) |
 | `/mnt/synced-addons` | Community addons from GitHubSyncer (read-only) |
 | `/mnt/extra-addons` | Custom Odoo modules |
-| `/var/log/odoo` | Odoo log files |
 
 **Example Docker Compose Volumes:**
 
@@ -342,7 +341,6 @@ volumes:
   - odoo-data:/var/lib/odoo
   - githubsyncer_repo_storage:/mnt/synced-addons:ro  # From GitHubSyncer
   - ./extra-addons:/mnt/extra-addons:ro
-  - odoo-logs:/var/log/odoo
 ```
 
 ## Mounting Extra Addons
@@ -455,7 +453,7 @@ The entrypoint executes the following steps in order:
 
 2. **For file-based logging:**
    ```yaml
-   conf.logfile: /var/log/odoo/odoo.log
+   conf.logfile: /var/lib/odoo/logs/odoo.log
    conf.log_level: info
    ```
 
@@ -468,7 +466,7 @@ The entrypoint executes the following steps in order:
 docker compose logs -f odoo
 
 # Odoo application logs (if file logging enabled)
-docker compose exec odoo cat /var/log/odoo/odoo.log
+docker compose exec odoo cat /var/lib/odoo/logs/odoo.log
 ```
 
 ### Access Container Shell

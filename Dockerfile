@@ -134,9 +134,8 @@ RUN set -eux; \
              /etc/odoo \
              /var/lib/odoo \
              /var/lib/odoo/.state \
-             /var/log/odoo \
              /mnt/extra-addons; \
-    chown -R odoo:odoo /opt/odoo /etc/odoo /var/lib/odoo /var/log/odoo /mnt/extra-addons
+    chown -R odoo:odoo /opt/odoo /etc/odoo /var/lib/odoo /mnt/extra-addons
 
 # -----------------------------------------------------------------------------
 # Clone Odoo 15 Source Code
@@ -213,8 +212,9 @@ EXPOSE 8069 8071 8072
 # -----------------------------------------------------------------------------
 # Define volumes
 # Note: /opt/odoo/addons removed - we use /mnt/synced-addons from GitHubSyncer
+# Note: Logs are stored in /var/lib/odoo/logs/ (part of odoo-data volume)
 # -----------------------------------------------------------------------------
-VOLUME ["/var/lib/odoo", "/mnt/extra-addons", "/var/log/odoo"]
+VOLUME ["/var/lib/odoo", "/mnt/extra-addons"]
 
 # -----------------------------------------------------------------------------
 # Healthcheck

@@ -100,7 +100,7 @@ services:
     ports:
       - "8069:8069"
     volumes:
-      # Odoo data (filestore, sessions, state files)
+      # Odoo data (filestore, sessions, logs)
       - odoo-basic-data:/var/lib/odoo
 
       # Shared addons from GitHubSyncer (READ-ONLY!)
@@ -108,9 +108,6 @@ services:
 
       # Custom addons for this instance
       - ./custom-addons:/mnt/extra-addons:ro
-
-      # Logs
-      - odoo-basic-logs:/var/log/odoo
     environment:
       # User/Group IDs
       PUID: 1000
@@ -133,8 +130,8 @@ services:
       # Data directory
       conf.data_dir: /var/lib/odoo
 
-      # Logging
-      conf.logfile: /var/log/odoo/odoo.log
+      # Logging (stored in data volume)
+      conf.logfile: /var/lib/odoo/logs/odoo.log
       conf.log_level: info
 
       # HTTP settings
@@ -178,7 +175,7 @@ services:
     ports:
       - "8070:8069"  # Different port
     volumes:
-      # Odoo data (separate from basic)
+      # Odoo data (filestore, sessions, logs)
       - odoo-full-data:/var/lib/odoo
 
       # Shared addons from GitHubSyncer (READ-ONLY!)
@@ -186,9 +183,6 @@ services:
 
       # Custom addons
       - ./custom-addons:/mnt/extra-addons:ro
-
-      # Logs
-      - odoo-full-logs:/var/log/odoo
     environment:
       PUID: 1000
       PGID: 1000
@@ -212,8 +206,8 @@ services:
       # Data directory
       conf.data_dir: /var/lib/odoo
 
-      # Logging
-      conf.logfile: /var/log/odoo/odoo.log
+      # Logging (stored in data volume)
+      conf.logfile: /var/lib/odoo/logs/odoo.log
       conf.log_level: info
 
       # HTTP settings
@@ -261,20 +255,12 @@ volumes:
   odoo-addons-shared:
     driver: local
 
-  # Odoo basic instance data
+  # Odoo basic instance data (contains filestore, sessions, logs)
   odoo-basic-data:
     driver: local
 
-  # Odoo basic logs
-  odoo-basic-logs:
-    driver: local
-
-  # Odoo full instance data
+  # Odoo full instance data (contains filestore, sessions, logs)
   odoo-full-data:
-    driver: local
-
-  # Odoo full logs
-  odoo-full-logs:
     driver: local
 
 # =============================================================================

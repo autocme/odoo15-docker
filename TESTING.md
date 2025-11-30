@@ -47,13 +47,13 @@ docker compose logs
 
 ```bash
 # قراءة ملف الـ log الداخلي
-docker compose exec odoo cat /var/log/odoo/odoo.log
+docker compose exec odoo cat /var/lib/odoo/logs/odoo.log
 
 # متابعة الـ log بشكل مباشر
-docker compose exec odoo tail -f /var/log/odoo/odoo.log
+docker compose exec odoo tail -f /var/lib/odoo/logs/odoo.log
 
 # آخر 50 سطر
-docker compose exec odoo tail -50 /var/log/odoo/odoo.log
+docker compose exec odoo tail -50 /var/lib/odoo/logs/odoo.log
 ```
 
 #### 3. Entrypoint Logs

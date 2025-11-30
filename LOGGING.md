@@ -11,7 +11,7 @@
 | # | نوع الـ Log | المسار/الوصول | التخزين | الاستخدام الرئيسي | اللوق الرئيسي؟ |
 |---|------------|--------------|---------|-------------------|----------------|
 | **1** | **Container Logs (stdout/stderr)** | `docker compose logs odoo` | Docker logging driver | **Entrypoint logs + Odoo startup** | ✅ **نعم** |
-| **2** | **Odoo Application Log** | `/var/log/odoo/odoo.log` | Volume: `odoo-logs` | Odoo runtime logs (requests, errors) | ✅ **نعم** |
+| **2** | **Odoo Application Log** | `/var/lib/odoo/logs/odoo.log` | Volume: `odoo-data` | Odoo runtime logs (requests, errors) | ✅ **نعم** |
 | **3** | **Database Logs** | `docker compose logs db` | Docker logging driver | PostgreSQL logs | ❌ ثانوي |
 | **4** | **Entrypoint Logs** | Part of Container Logs | Docker stdout | Setup & initialization | ✅ مهم |
 
@@ -72,21 +72,21 @@ docker compose logs odoo > odoo-container-logs.txt
 
 ### 📍 المسار:
 ```
-/var/log/odoo/odoo.log
+/var/lib/odoo/logs/odoo.log
 ```
 
 ### 📦 التخزين:
 ```yaml
 # في docker-compose.yml
 volumes:
-  - odoo-logs:/var/log/odoo
+  - odoo-data:/var/lib/odoo  # يحتوي على logs/odoo.log
 ```
 
 ### 🔧 الإعداد:
 ```yaml
 # في docker-compose.yml
 environment:
-  conf.logfile: /var/log/odoo/odoo.log
+  conf.logfile: /var/lib/odoo/logs/odoo.log
   conf.log_level: info
   conf.log_handler: :INFO
 ```
@@ -94,19 +94,19 @@ environment:
 ### 📍 الوصول:
 ```bash
 # قراءة الملف بالكامل
-docker compose exec odoo cat /var/log/odoo/odoo.log
+docker compose exec odoo cat /var/lib/odoo/logs/odoo.log
 
 # Real-time monitoring
-docker compose exec odoo tail -f /var/log/odoo/odoo.log
+docker compose exec odoo tail -f /var/lib/odoo/logs/odoo.log
 
 # آخر 50 سطر
-docker compose exec odoo tail -50 /var/log/odoo/odoo.log
+docker compose exec odoo tail -50 /var/lib/odoo/logs/odoo.log
 
 # البحث عن أخطاء
-docker compose exec odoo grep -i error /var/log/odoo/odoo.log
+docker compose exec odoo grep -i error /var/lib/odoo/logs/odoo.log
 
 # البحث مع سياق (5 أسطر قبل/بعد)
-docker compose exec odoo grep -i -C 5 error /var/log/odoo/odoo.log
+docker compose exec odoo grep -i -C 5 error /var/lib/odoo/logs/odoo.log
 ```
 
 ### 📝 المحتوى:
@@ -212,7 +212,7 @@ log_error() {
 | **Container لا يبدأ** | Container Logs (stdout) | يحتوي على entrypoint logs |
 | **Auto-upgrade issues** | Container Logs | يحتوي على click-odoo-update output |
 | **Database init problems** | Container Logs | يحتوي على click-odoo-initdb output |
-| **Odoo runtime errors** | Application Log (/var/log/odoo/odoo.log) | يحتوي على traceback مفصّل |
+| **Odoo runtime errors** | Application Log (/var/lib/odoo/logs/odoo.log) | يحتوي على traceback مفصّل |
 | **HTTP 500 errors** | Application Log | يحتوي على request details |
 | **Module installation** | Application Log | يحتوي على module loading logs |
 | **SQL errors** | Database Logs | يحتوي على PostgreSQL errors |
@@ -226,20 +226,20 @@ log_error() {
 
 ```yaml
 # استخدم كلا النظامين
-conf.logfile: /var/log/odoo/odoo.log
+conf.logfile: /var/lib/odoo/logs/odoo.log
 conf.log_level: debug
 conf.log_handler: :DEBUG
 
 # راقب كليهما
 docker compose logs -f odoo &
-docker compose exec odoo tail -f /var/log/odoo/odoo.log
+docker compose exec odoo tail -f /var/lib/odoo/logs/odoo.log
 ```
 
 ### 2️⃣ **للإنتاج (Production):**
 
 **Option A: File-based (موصى به)**
 ```yaml
-conf.logfile: /var/log/odoo/odoo.log
+conf.logfile: /var/lib/odoo/logs/odoo.log
 conf.log_level: info
 conf.log_handler: :INFO
 ```
@@ -256,7 +256,7 @@ conf.log_level: info
 
 ```bash
 # إنشاء /etc/logrotate.d/odoo
-/var/log/odoo/*.log {
+/var/lib/odoo/logs/*.log {
     daily
     rotate 7
     compress
@@ -282,7 +282,7 @@ docker compose logs odoo | grep -i error
 
 **اللوق المطلوب:** Application Log
 ```bash
-docker compose exec odoo tail -100 /var/log/odoo/odoo.log | grep -i error
+docker compose exec odoo tail -100 /var/lib/odoo/logs/odoo.log | grep -i error
 ```
 
 ### المشكلة 3: Database connection failed
@@ -306,7 +306,7 @@ docker compose logs odoo | grep -i upgrade
 
 **اللوق المطلوب:** Application Log
 ```bash
-docker compose exec odoo grep "module_name" /var/log/odoo/odoo.log
+docker compose exec odoo grep "module_name" /var/lib/odoo/logs/odoo.log
 ```
 
 ---
@@ -323,8 +323,8 @@ docker compose exec odoo grep "module_name" /var/log/odoo/odoo.log
 │     ✅ Entrypoint + Startup + Auto-upgrade                  │
 │     ⭐ اللوق الرئيسي للـ initialization                      │
 │                                                             │
-│  2️⃣ Application Log (/var/log/odoo/odoo.log)                │
-│     📍 docker compose exec odoo cat /var/log/odoo/odoo.log  │
+│  2️⃣ Application Log (/var/lib/odoo/logs/odoo.log)           │
+│     📍 docker compose exec odoo cat /var/lib/odoo/logs/odoo.log │
 │     ✅ Runtime + HTTP + Errors + Performance                │
 │     ⭐ اللوق الرئيسي للـ runtime issues                      │
 │                                                             │
@@ -359,7 +359,7 @@ docker compose exec odoo grep "module_name" /var/log/odoo/odoo.log
 docker compose logs -f odoo
 
 # Terminal 2
-docker compose exec odoo tail -f /var/log/odoo/odoo.log
+docker compose exec odoo tail -f /var/lib/odoo/logs/odoo.log
 ```
 
 هذا يعطيك **رؤية شاملة** لكل ما يحدث! 🚀

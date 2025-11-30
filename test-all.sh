@@ -306,12 +306,6 @@ test_volumes() {
         print_error "odoo-db-data volume missing"
     fi
 
-    print_test "Checking odoo-logs volume..."
-    if docker volume ls | grep -q "odoo15-core_odoo-logs"; then
-        print_success "odoo-logs volume exists"
-    else
-        print_error "odoo-logs volume missing"
-    fi
 }
 
 # ==============================================================================

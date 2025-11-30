@@ -56,7 +56,6 @@ setup_user_permissions() {
     log_info "Fixing ownership of Odoo directories..."
     chown -R odoo:odoo "$ODOO_DATA_DIR" || true
     chown -R odoo:odoo /etc/odoo || true
-    chown -R odoo:odoo /var/log/odoo || true
     chown -R odoo:odoo /mnt/extra-addons 2>/dev/null || true
 
     log_info "User permissions configured successfully."
