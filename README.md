@@ -85,37 +85,7 @@ docker compose logs -f odoo
 - `/mnt/synced-addons/odoo-core-addons` - Community modules (from GitHubSyncer)
 - `/mnt/extra-addons` - Your custom modules
 
-## Quick Start
-
-### 1. Clone or Create Project Structure
-
-```bash
-git clone git@github.com:autocme/odoo15-docker.git
-cd odoo15-docker
-```
-
-### 2. Build the Image
-
-```bash
-docker build -t jaah/odoo:15 .
-```
-
-### 3. Run with Docker Compose
-
-```bash
-# Create extra-addons directory for custom modules
-mkdir -p extra-addons
-
-# Start the stack
-docker compose up -d
-
-# View logs
-docker compose logs -f odoo
-```
-
-### 4. Access Odoo
-
-Open your browser and navigate to: `http://localhost:8069`
+---
 
 ## Project Structure
 
@@ -136,8 +106,10 @@ This image is designed for **scalable, multi-container deployments**:
 
 - **Odoo Core** ([autocme/odoo-core](https://github.com/autocme/odoo-core)): Minimal framework (~100MB vs ~500MB)
 - **Addons**: Managed externally via shared volumes (see `ADDONS_STRUCTURE.md`)
-- **GitHubSyncer**: Automated addon synchronization from GitHub (optional)
+- **GitHubSyncer** ([autocme/GitHubSyncer](https://github.com/autocme/GitHubSyncer)): **Required** for managing community addons
 - **Configuration**: Environment-based via `conf.*` variables
+
+**Important:** This setup requires GitHubSyncer to provide the 435 community modules from `odoo-core-addons`. See [Installation Steps](#installation-steps) above.
 
 ## Configuration Reference
 
@@ -174,7 +146,7 @@ environment:
   conf.db_port: 5432
   conf.db_user: odoo
   conf.db_password: odoo
-  conf.addons_path: /opt/odoo/addons,/mnt/extra-addons
+  conf.addons_path: /opt/odoo/odoo/addons,/mnt/synced-addons/odoo-core-addons,/mnt/extra-addons
   conf.logfile: /var/log/odoo/odoo.log
   conf.workers: 4
   conf.proxy_mode: True
@@ -189,7 +161,7 @@ db_host = db
 db_port = 5432
 db_user = odoo
 db_password = odoo
-addons_path = /opt/odoo/addons,/mnt/extra-addons
+addons_path = /opt/odoo/odoo/addons,/mnt/synced-addons/odoo-core-addons,/mnt/extra-addons
 logfile = /var/log/odoo/odoo.log
 workers = 4
 proxy_mode = True
@@ -302,6 +274,7 @@ If your host user has UID 1001, set `PUID=1001` to avoid permission issues with 
 | Path | Purpose |
 |------|---------|
 | `/var/lib/odoo` | Odoo data (filestore, sessions, state files) |
+| `/mnt/synced-addons` | Community addons from GitHubSyncer (read-only) |
 | `/mnt/extra-addons` | Custom Odoo modules |
 | `/var/log/odoo` | Odoo log files |
 
@@ -310,6 +283,7 @@ If your host user has UID 1001, set `PUID=1001` to avoid permission issues with 
 ```yaml
 volumes:
   - odoo-data:/var/lib/odoo
+  - githubsyncer_repo_storage:/mnt/synced-addons:ro  # From GitHubSyncer
   - ./extra-addons:/mnt/extra-addons:ro
   - odoo-logs:/var/log/odoo
 ```
@@ -334,12 +308,13 @@ To add custom Odoo modules:
        └── __manifest__.py
    ```
 
-3. Mount the directory and update `addons_path`:
+3. The directory is already mounted in `docker-compose.yml`:
    ```yaml
    volumes:
      - ./extra-addons:/mnt/extra-addons:ro
    environment:
-     conf.addons_path: /opt/odoo/addons,/opt/odoo/odoo/addons,/mnt/extra-addons
+     # Custom addons are already in the path
+     conf.addons_path: /opt/odoo/odoo/addons,/mnt/synced-addons/odoo-core-addons,/mnt/extra-addons
    ```
 
 4. Restart the container and install your modules via the Odoo Apps menu.
