@@ -206,7 +206,7 @@ initialize_database() {
 # click-odoo-update handles module hashing internally
 # -----------------------------------------------------------------------------
 run_auto_upgrade() {
-    local auto_upgrade="${AUTO_UPGRADE:-FALSE}"
+    local auto_upgrade="${AUTO_UPGRADE:-TRUE}"
     local db_name="${ODOO_DB_NAME:-}"
 
     # Convert to uppercase for comparison
@@ -218,10 +218,27 @@ run_auto_upgrade() {
         return 0
     fi
 
-    # Skip if ODOO_DB_NAME is not set
+    # Auto-detect database if not specified
     if [ -z "$db_name" ]; then
-        log_warn "AUTO_UPGRADE is TRUE but ODOO_DB_NAME is not set, skipping upgrade."
-        return 0
+        log_info "ODOO_DB_NAME not set, auto-detecting Odoo database..."
+
+        # Get database connection details from conf.* environment variables
+        local db_host=$(printenv 'conf.db_host' || echo 'db')
+        local db_port=$(printenv 'conf.db_port' || echo '5432')
+        local db_user=$(printenv 'conf.db_user' || echo 'odoo')
+        local db_password=$(printenv 'conf.db_password' || echo 'odoo')
+
+        # Find first non-system database
+        db_name=$(PGPASSWORD="$db_password" psql -h "$db_host" -p "$db_port" -U "$db_user" -d postgres -t -c \
+            "SELECT datname FROM pg_database WHERE datname NOT IN ('postgres', 'template0', 'template1') ORDER BY datname LIMIT 1;" \
+            2>/dev/null | xargs)
+
+        if [ -z "$db_name" ]; then
+            log_info "No Odoo database found yet, skipping automatic upgrade."
+            return 0
+        fi
+
+        log_info "Auto-detected database: ${db_name}"
     fi
 
     log_info "Running click-odoo-update for database: ${db_name}..."

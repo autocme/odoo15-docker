@@ -122,8 +122,8 @@ This image is designed for **scalable, multi-container deployments**:
 | `ERP_CONF_PATH` | Path to Odoo config file | `/etc/odoo/erp.conf` |
 | `ODOO_PORT` | HTTP port for healthcheck | `8069` |
 | `INITDB_OPTIONS` | Options for click-odoo-initdb | (empty) |
-| `AUTO_UPGRADE` | Enable auto-upgrade on restart | `FALSE` |
-| `ODOO_DB_NAME` | Database name for auto-upgrade | (empty) |
+| `AUTO_UPGRADE` | Enable auto-upgrade on restart | `TRUE` |
+| `ODOO_DB_NAME` | Database name (auto-detected if empty) | (auto-detect) |
 | `PY_INSTALL` | Python packages to install | (empty) |
 | `NPM_INSTALL` | NPM packages to install | (empty) |
 | `conf.*` | Dynamic Odoo configuration | (various) |
@@ -208,23 +208,36 @@ INITDB_OPTIONS: "-n fresh_db -m base"
 
 Uses [click-odoo-update](https://github.com/acsone/click-odoo-contrib) to automatically upgrade modules.
 
+**Default:** `TRUE` (enabled by default)
+
 **Environment Variables:**
 ```yaml
-AUTO_UPGRADE: "TRUE"
-ODOO_DB_NAME: mydb
+AUTO_UPGRADE: "TRUE"              # Default - can be set to FALSE to disable
+# ODOO_DB_NAME: "mydb"            # Optional - auto-detected if not specified
 ```
 
 **Behavior:**
-- Runs on **every** container restart when `AUTO_UPGRADE=TRUE`
-- Requires `ODOO_DB_NAME` to be set
+- **Enabled by default** - runs on every container restart
+- **Auto-detects database** - finds the first non-system database automatically
+- `ODOO_DB_NAME` is **optional** - only specify if you have multiple databases
 - click-odoo-update uses internal module hashing to detect changes
 - Only modules that have actually changed are upgraded
 - No custom version state is maintained - relies entirely on click-odoo-update's logic
 
+**Database Auto-Detection:**
+- Automatically finds the first Odoo database (excluding `postgres`, `template0`, `template1`)
+- Perfect for single-database setups (most common use case)
+- Skips upgrade gracefully if no database exists yet
+
+**To Disable:**
+```yaml
+AUTO_UPGRADE: "FALSE"
+```
+
 **Important Notes:**
 - This is designed for development and staging environments
 - In production, you may want to run upgrades manually during maintenance windows
-- Set `AUTO_UPGRADE=FALSE` to disable automatic upgrades
+- For multi-database setups, specify `ODOO_DB_NAME` explicitly
 
 ### One-Time Package Installation
 

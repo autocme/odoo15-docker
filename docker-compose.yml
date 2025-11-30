@@ -120,10 +120,11 @@ services:
       # -----------------------------------------------------------------------
       # Auto-Upgrade Configuration (click-odoo-update)
       # -----------------------------------------------------------------------
-      # Disabled by default - upgrade manually when needed
-      # To enable: set AUTO_UPGRADE=TRUE and specify database name
-      AUTO_UPGRADE: "FALSE"
-      ODOO_DB_NAME: ""
+      # Enabled by default - auto-detects database and upgrades on restart
+      # Database is auto-detected (first non-system DB)
+      # To disable: set AUTO_UPGRADE=FALSE
+      AUTO_UPGRADE: "TRUE"
+      # ODOO_DB_NAME: ""  # Optional - auto-detected if not specified
 
       # -----------------------------------------------------------------------
       # One-Time Package Installation
