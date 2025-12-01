@@ -53,7 +53,7 @@ services:
       - odoo-data:/var/lib/odoo
 
       # Odoo core addons from GitHubSyncer (READ-ONLY!)
-      - githubsyncer_repo_storage:/mnt/synced-addons:ro
+      - syncer_repo_storage:/mnt/synced-addons:ro
 
       # Extra addons directory (mount your custom modules here)
       - ./extra-addons:/mnt/extra-addons:ro
@@ -148,7 +148,7 @@ volumes:
     driver: local
 
   # GitHubSyncer addons storage (external - managed by GitHubSyncer)
-  githubsyncer_repo_storage:
+  syncer_repo_storage:
     external: true
 
 # =============================================================================
