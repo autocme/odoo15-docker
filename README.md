@@ -7,57 +7,109 @@ A production-grade Docker image for Odoo 15 with **click-odoo** integration for 
 ## Features
 
 - **Based on Python 3.10-slim** - Lightweight and secure base image
-- **Odoo 15 Community Edition** - Full source code installation
+- **Optimized Odoo Core** - Uses [autocme/odoo-core](https://github.com/autocme/odoo-core) - minimal Odoo framework without addons/docs/tests (80% smaller)
+- **Shared Addons Architecture** - Addons managed externally via volume mounts for better scalability
+- **GitHubSyncer Integration** - Automated addon updates from GitHub repositories
 - **click-odoo-initdb** - Automated database creation with module installation
 - **click-odoo-update** - Automatic module upgrade on every container restart
 - **Dynamic Configuration** - Generate Odoo config via `conf.*` environment variables
 - **One-Time Package Installation** - Install Python/NPM packages via environment variables
 - **PUID/PGID Support** - Flexible file permission management
 - **Docker Healthcheck** - Built-in health monitoring
-- **Production Ready** - Optimized for SaaS environments
+- **Production Ready** - Optimized for SaaS and multi-tenant environments
 
-## Quick Start
+## Installation Steps
 
-### 1. Clone or Create Project Structure
+This setup requires **GitHubSyncer** to manage Odoo addons. Follow these steps in order:
+
+### Step 1: Setup GitHubSyncer
+
+GitHubSyncer manages addon repositories and syncs them to shared Docker volumes.
 
 ```bash
-git clone git@github.com:autocme/odoo15-docker.git
+# Clone GitHubSyncer repository
+git clone https://github.com/autocme/GitHubSyncer.git
+cd GitHubSyncer
+
+# Start GitHubSyncer
+docker compose up -d
+
+# Access GitHubSyncer UI
+# Open http://localhost:3000 in your browser
+```
+
+### Step 2: Add Odoo Addons Repository to GitHubSyncer
+
+Add the official Odoo community addons repository:
+
+1. Open GitHubSyncer UI at `http://localhost:3000`
+2. Click **"Add Repository"**
+3. Enter repository details:
+   - **Repository URL:** `https://github.com/autocme/odoo-core-addons`
+   - **Branch:** `15.0`
+   - **Name:** `odoo-core-addons`
+4. Click **"Save"**
+5. Click **"Sync Now"** to pull the addons (435 modules, ~740MB)
+6. Wait for sync to complete
+
+**Note:** The addons will be stored in the `githubsyncer_repo_storage` Docker volume.
+
+### Step 3: Setup and Start Odoo
+
+```bash
+# Clone this repository
+git clone https://github.com/autocme/odoo15-docker.git
 cd odoo15-docker
-```
 
-### 2. Build the Image
-
-```bash
-docker build -t jaah/odoo:15 .
-```
-
-### 3. Run with Docker Compose
-
-```bash
 # Create extra-addons directory for custom modules
 mkdir -p extra-addons
 
-# Start the stack
+# Build the Odoo image
+docker compose build
+
+# Start Odoo (connects to GitHubSyncer volume automatically)
 docker compose up -d
 
 # View logs
 docker compose logs -f odoo
 ```
 
-### 4. Access Odoo
+### Step 4: Create Database and Access Odoo
 
-Open your browser and navigate to: `http://localhost:8069`
+1. Open your browser and navigate to: `http://localhost:8069`
+2. Create a new database from the UI
+3. All **435 community modules** from `odoo-core-addons` will be available!
+
+**Addons Path:**
+- `/opt/odoo/odoo/addons` - Framework modules (built into image)
+- `/mnt/synced-addons/odoo-core-addons` - Community modules (from GitHubSyncer)
+- `/mnt/extra-addons` - Your custom modules
+
+---
 
 ## Project Structure
 
 ```
 odoo15-docker/
-├── Dockerfile           # Main Docker image definition
-├── entrypoint.sh        # Container entrypoint with startup logic
-├── docker-compose.yml   # Example production stack configuration
-├── README.md            # This documentation
-└── extra-addons/        # Mount point for custom Odoo modules
+├── Dockerfile                              # Main Docker image definition
+├── entrypoint.sh                           # Container entrypoint with startup logic
+├── docker-compose.yml                      # Basic production stack
+├── docker-compose.githubsyncer.example.yml # GitHubSyncer integration example
+├── ADDONS_STRUCTURE.md                     # Addons organization guide
+├── README.md                               # This documentation
+└── extra-addons/                           # Mount point for custom Odoo modules
 ```
+
+### Architecture Overview
+
+This image is designed for **scalable, multi-container deployments**:
+
+- **Odoo Core** ([autocme/odoo-core](https://github.com/autocme/odoo-core)): Minimal framework (~100MB vs ~500MB)
+- **Addons**: Managed externally via shared volumes (see `ADDONS_STRUCTURE.md`)
+- **GitHubSyncer** ([autocme/GitHubSyncer](https://github.com/autocme/GitHubSyncer)): **Required** for managing community addons
+- **Configuration**: Environment-based via `conf.*` variables
+
+**Important:** This setup requires GitHubSyncer to provide the 435 community modules from `odoo-core-addons`. See [Installation Steps](#installation-steps) above.
 
 ## Configuration Reference
 
@@ -70,8 +122,8 @@ odoo15-docker/
 | `ERP_CONF_PATH` | Path to Odoo config file | `/etc/odoo/erp.conf` |
 | `ODOO_PORT` | HTTP port for healthcheck | `8069` |
 | `INITDB_OPTIONS` | Options for click-odoo-initdb | (empty) |
-| `AUTO_UPGRADE` | Enable auto-upgrade on restart | `FALSE` |
-| `ODOO_DB_NAME` | Database name for auto-upgrade | (empty) |
+| `AUTO_UPGRADE` | Enable auto-upgrade on restart | `TRUE` |
+| `ODOO_DB_NAME` | Database name (auto-detected if empty) | (auto-detect) |
 | `PY_INSTALL` | Python packages to install | (empty) |
 | `NPM_INSTALL` | NPM packages to install | (empty) |
 | `conf.*` | Dynamic Odoo configuration | (various) |
@@ -94,8 +146,8 @@ environment:
   conf.db_port: 5432
   conf.db_user: odoo
   conf.db_password: odoo
-  conf.addons_path: /opt/odoo/addons,/mnt/extra-addons
-  conf.logfile: /var/log/odoo/odoo.log
+  conf.addons_path: /opt/odoo/odoo/addons,/mnt/synced-addons/odoo-core-addons,/mnt/extra-addons
+  conf.logfile: /var/lib/odoo/logs/odoo.log
   conf.workers: 4
   conf.proxy_mode: True
 ```
@@ -109,8 +161,8 @@ db_host = db
 db_port = 5432
 db_user = odoo
 db_password = odoo
-addons_path = /opt/odoo/addons,/mnt/extra-addons
-logfile = /var/log/odoo/odoo.log
+addons_path = /opt/odoo/odoo/addons,/mnt/synced-addons/odoo-core-addons,/mnt/extra-addons
+logfile = /var/lib/odoo/logs/odoo.log
 workers = 4
 proxy_mode = True
 ```
@@ -156,25 +208,60 @@ INITDB_OPTIONS: "-n fresh_db -m base"
 
 Uses [click-odoo-update](https://github.com/acsone/click-odoo-contrib) to automatically upgrade modules.
 
+**Default:** `TRUE` (enabled by default)
+
 **Environment Variables:**
 ```yaml
-AUTO_UPGRADE: "TRUE"
-ODOO_DB_NAME: mydb
+AUTO_UPGRADE: "TRUE"              # Default - can be set to FALSE to disable
+# ODOO_DB_NAME: "mydb"            # Optional - auto-detected if not specified
 ```
 
 **Behavior:**
-- Runs on **every** container restart when `AUTO_UPGRADE=TRUE`
-- Requires `ODOO_DB_NAME` to be set
+- **Enabled by default** - runs on every container restart
+- **Auto-detects database** - finds the first non-system database automatically
+- `ODOO_DB_NAME` is **optional** - only specify if you have multiple databases
+- **Pre-upgrade check** - lists modules to upgrade before starting (using `--list-only`)
+- **Translation updates** - uses `--i18n-overwrite` to keep translations up-to-date
 - click-odoo-update uses internal module hashing to detect changes
 - Only modules that have actually changed are upgraded
 - No custom version state is maintained - relies entirely on click-odoo-update's logic
 
+**Upgrade Process:**
+1. **Check phase** - Lists all modules that need upgrading (non-destructive)
+2. **Upgrade phase** - Only runs if modules need updating
+3. **Translation sync** - Overwrites existing translations with updated ones
+
+**Database Auto-Detection:**
+- Automatically finds the first Odoo database (excluding `postgres`, `template0`, `template1`)
+- Perfect for single-database setups (most common use case)
+- Skips upgrade gracefully if no database exists yet
+
+**Log Output Example:**
+```
+[INFO] 2025-11-30 05:06:11 - Checking for modules that need upgrade in database: production...
+[INFO] 2025-11-30 05:06:11 - === Modules to be upgraded ===
+INFO  Modules to update: sale, purchase, stock
+[INFO] 2025-11-30 05:06:11 - === End of modules list ===
+[INFO] 2025-11-30 05:06:11 - Running automatic upgrade with translation overwrite...
+[INFO] 2025-11-30 05:06:25 - Automatic upgrade completed successfully.
+```
+
+**If No Modules Need Upgrading:**
+```
+[INFO] 2025-11-30 05:06:11 - No modules need upgrading. System is up-to-date.
+```
+
+**To Disable:**
+```yaml
+AUTO_UPGRADE: "FALSE"
+```
+
 **Important Notes:**
 - This is designed for development and staging environments
 - In production, you may want to run upgrades manually during maintenance windows
-- Set `AUTO_UPGRADE=FALSE` to disable automatic upgrades
+- For multi-database setups, specify `ODOO_DB_NAME` explicitly
 
-### One-Time Package Installation
+### Runtime Package Installation
 
 #### Python Packages (`PY_INSTALL`)
 
@@ -183,10 +270,20 @@ PY_INSTALL: "asn1crypto,Babel==2.9.1,phonenumbers"
 ```
 
 **Behavior:**
-- Packages are installed via `pip install`
-- Only runs once per volume instance
-- State tracked in `/var/lib/odoo/.state/py_install.done`
-- Subsequent restarts skip installation if state file exists
+- **Stateless checking** - verifies packages on every startup (no state files)
+- Checks if each package is installed with the correct version using `pip show`
+- Only installs/upgrades if needed (smart detection)
+- Supports version pinning (`package==version`) or latest (`package`)
+- Fast - skips installation if all packages already present
+
+**Log Output Example:**
+```
+[INFO] Checking Python packages: phonenumbers,python-stdnum,num2words...
+[INFO]   ✓ phonenumbers already installed (version: 9.0.19)
+[INFO]   ✓ python-stdnum already installed (version: 1.13)
+[INFO]   ✓ num2words already installed (version: 0.5.6)
+[INFO] All Python packages already installed.
+```
 
 #### NPM Packages (`NPM_INSTALL`)
 
@@ -195,12 +292,24 @@ NPM_INSTALL: "rtlcss,less"
 ```
 
 **Behavior:**
-- Packages are installed globally via `npm install -g`
-- Only runs once per volume instance
-- State tracked in `/var/lib/odoo/.state/npm_install.done`
-- Subsequent restarts skip installation if state file exists
+- **Stateless checking** - verifies packages on every startup (no state files)
+- Checks global package installation using `npm list -g`
+- Only installs if packages are missing
+- Fast - skips installation if all packages already present
 
-**Note:** Since `/var/lib/odoo` is typically a Docker volume, the state files persist across container recreations, ensuring packages are only installed once.
+**Log Output Example:**
+```
+[INFO] Checking NPM packages: rtlcss,less...
+[INFO]   ✓ rtlcss already installed (version: 4.1.1)
+[INFO]   ✓ less already installed (version: 4.2.0)
+[INFO] All NPM packages already installed.
+```
+
+**Why Stateless?**
+- No state files means cleaner `/var/lib/odoo` (only application data)
+- Works correctly when switching between image versions
+- Always validates actual installation status vs relying on stale markers
+- Better for ephemeral containers and CI/CD pipelines
 
 ### User Permissions (`PUID`/`PGID`)
 
@@ -221,17 +330,17 @@ If your host user has UID 1001, set `PUID=1001` to avoid permission issues with 
 
 | Path | Purpose |
 |------|---------|
-| `/var/lib/odoo` | Odoo data (filestore, sessions, state files) |
+| `/var/lib/odoo` | Odoo data (filestore, sessions, logs) |
+| `/mnt/synced-addons` | Community addons from GitHubSyncer (read-only) |
 | `/mnt/extra-addons` | Custom Odoo modules |
-| `/var/log/odoo` | Odoo log files |
 
 **Example Docker Compose Volumes:**
 
 ```yaml
 volumes:
   - odoo-data:/var/lib/odoo
+  - githubsyncer_repo_storage:/mnt/synced-addons:ro  # From GitHubSyncer
   - ./extra-addons:/mnt/extra-addons:ro
-  - odoo-logs:/var/log/odoo
 ```
 
 ## Mounting Extra Addons
@@ -254,12 +363,13 @@ To add custom Odoo modules:
        └── __manifest__.py
    ```
 
-3. Mount the directory and update `addons_path`:
+3. The directory is already mounted in `docker-compose.yml`:
    ```yaml
    volumes:
      - ./extra-addons:/mnt/extra-addons:ro
    environment:
-     conf.addons_path: /opt/odoo/addons,/opt/odoo/odoo/addons,/mnt/extra-addons
+     # Custom addons are already in the path
+     conf.addons_path: /opt/odoo/odoo/addons,/mnt/synced-addons/odoo-core-addons,/mnt/extra-addons
    ```
 
 4. Restart the container and install your modules via the Odoo Apps menu.
@@ -343,7 +453,7 @@ The entrypoint executes the following steps in order:
 
 2. **For file-based logging:**
    ```yaml
-   conf.logfile: /var/log/odoo/odoo.log
+   conf.logfile: /var/lib/odoo/logs/odoo.log
    conf.log_level: info
    ```
 
@@ -356,7 +466,7 @@ The entrypoint executes the following steps in order:
 docker compose logs -f odoo
 
 # Odoo application logs (if file logging enabled)
-docker compose exec odoo cat /var/log/odoo/odoo.log
+docker compose exec odoo cat /var/lib/odoo/logs/odoo.log
 ```
 
 ### Access Container Shell
@@ -371,15 +481,21 @@ docker compose exec odoo bash
 docker compose exec odoo cat /etc/odoo/erp.conf
 ```
 
-### Reset State Files
+### Force Package Reinstallation
 
-To re-run package installations:
+Packages are checked on every startup. To force reinstallation:
 
 ```bash
-docker compose exec odoo rm -f /var/lib/odoo/.state/py_install.done
-docker compose exec odoo rm -f /var/lib/odoo/.state/npm_install.done
+# For Python packages - uninstall then restart
+docker compose exec odoo pip uninstall -y phonenumbers python-stdnum num2words
+docker compose restart odoo
+
+# For NPM packages - uninstall then restart
+docker compose exec odoo npm uninstall -g rtlcss less
 docker compose restart odoo
 ```
+
+**Note:** With stateless checking, simply restarting will reinstall missing packages automatically.
 
 ### Database Issues
 

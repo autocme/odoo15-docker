@@ -7,8 +7,6 @@
 # - Persistent volumes for data and addons
 # =============================================================================
 
-version: '3.8'
-
 services:
   # ---------------------------------------------------------------------------
   # PostgreSQL Database Service
@@ -23,11 +21,12 @@ services:
       POSTGRES_DB: postgres
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
-      - odoo-db-data:/var/lib/postgresql/data/pgdata
+      # Mount to parent directory - PostgreSQL will create pgdata subdirectory
+      - odoo-db-data:/var/lib/postgresql/data
     networks:
       - odoo-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U odoo"]
+      test: ["CMD-SHELL", "pg_isready -U odoo -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,12 +49,14 @@ services:
       - "8071:8071"   # Longpolling port
       - "8072:8072"   # Websocket port
     volumes:
-      # Persistent data volume (contains filestore, sessions, state files)
+      # Persistent data volume (contains filestore, sessions, logs)
       - odoo-data:/var/lib/odoo
+
+      # Odoo core addons from GitHubSyncer (READ-ONLY!)
+      - githubsyncer_repo_storage:/mnt/synced-addons:ro
+
       # Extra addons directory (mount your custom modules here)
       - ./extra-addons:/mnt/extra-addons:ro
-      # Odoo logs (optional, can also use docker logs)
-      - odoo-logs:/var/log/odoo
     environment:
       # -----------------------------------------------------------------------
       # User/Group IDs for file permissions
@@ -77,14 +78,17 @@ services:
       # Admin password (change in production!)
       conf.admin_passwd: admin_secure_password_change_me
 
-      # Addons paths
-      conf.addons_path: /opt/odoo/addons,/opt/odoo/odoo/addons,/mnt/extra-addons
+      # Addons paths (Framework addons MUST be first!)
+      # /opt/odoo/odoo/addons        - Framework (in image)
+      # /mnt/synced-addons/odoo-core-addons - Community addons (from GitHubSyncer)
+      # /mnt/extra-addons            - Custom addons
+      conf.addons_path: "/opt/odoo/odoo/addons,/mnt/synced-addons/odoo-core-addons,/mnt/extra-addons"
 
       # Data directory
       conf.data_dir: /var/lib/odoo
 
-      # Logging
-      conf.logfile: /var/log/odoo/odoo.log
+      # Logging (stored in data volume)
+      conf.logfile: /var/lib/odoo/logs/odoo.log
       conf.log_level: info
       conf.log_handler: :INFO
 
@@ -105,17 +109,19 @@ services:
       # -----------------------------------------------------------------------
       # Database Initialization (click-odoo-initdb)
       # -----------------------------------------------------------------------
-      # Creates the database 'odoo_prod' with base modules installed
-      # --unless-initialized prevents re-initialization on restart
-      INITDB_OPTIONS: "-n odoo_prod -m base,web --unless-initialized"
+      # Disabled by default - create database manually from Odoo UI
+      # To enable: set database name and modules, e.g.:
+      # INITDB_OPTIONS: "-n odoo_prod -m base,web --unless-initialized"
+      INITDB_OPTIONS: ""
 
       # -----------------------------------------------------------------------
       # Auto-Upgrade Configuration (click-odoo-update)
       # -----------------------------------------------------------------------
-      # Enable automatic module upgrade on every container restart
+      # Enabled by default - auto-detects database and upgrades on restart
+      # Database is auto-detected (first non-system DB)
+      # To disable: set AUTO_UPGRADE=FALSE
       AUTO_UPGRADE: "TRUE"
-      # Database name for auto-upgrade
-      ODOO_DB_NAME: odoo_prod
+      # ODOO_DB_NAME: ""  # Optional - auto-detected if not specified
 
       # -----------------------------------------------------------------------
       # One-Time Package Installation
@@ -137,13 +143,13 @@ volumes:
   odoo-db-data:
     driver: local
 
-  # Odoo data (filestore, sessions, .state directory)
+  # Odoo data (filestore, sessions, logs)
   odoo-data:
     driver: local
 
-  # Odoo logs
-  odoo-logs:
-    driver: local
+  # GitHubSyncer addons storage (external - managed by GitHubSyncer)
+  githubsyncer_repo_storage:
+    external: true
 
 # =============================================================================
 # Networks

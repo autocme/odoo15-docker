@@ -1,0 +1,294 @@
+# =============================================================================
+# Odoo 15 Production Stack with GitHubSyncer for Addons Management
+# =============================================================================
+# This setup uses GitHubSyncer to manage Odoo addons from GitHub repositories
+# All addons are stored in a shared volume and mounted read-only to containers
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database Service
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:14-alpine
+    container_name: odoo15-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - odoo-db-data:/var/lib/postgresql/data/pgdata
+    networks:
+      - odoo-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # GitHubSyncer - Manages Odoo Addons from GitHub
+  # Syncs autocme/odoo-core-addons repository to shared volume
+  # ---------------------------------------------------------------------------
+  githubsyncer:
+    image: autocme/githubsyncer:latest
+    container_name: odoo-addons-syncer
+    restart: unless-stopped
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://syncer:syncer@syncer-db:5432/githubsyncer
+
+      # Repository storage path
+      MAIN_PATH: /app/repos
+
+      # Logging
+      LOG_LEVEL: INFO
+    ports:
+      - "5000:5000"    # Web UI
+      - "8200:8200"    # GitHub Webhook
+    volumes:
+      # Shared addons storage - GitHubSyncer pulls odoo-core-addons here
+      - odoo-addons-shared:/app/repos
+
+      # Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+      # Syncer data
+      - syncer-data:/app/data
+    networks:
+      - odoo-network
+    depends_on:
+      - syncer-db
+    labels:
+      # This container should NOT be restarted by itself
+      - "restart-after: none"
+
+  # ---------------------------------------------------------------------------
+  # GitHubSyncer Database
+  # ---------------------------------------------------------------------------
+  syncer-db:
+    image: postgres:14-alpine
+    container_name: githubsyncer-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: syncer
+      POSTGRES_PASSWORD: syncer
+      POSTGRES_DB: githubsyncer
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - syncer-db-data:/var/lib/postgresql/data/pgdata
+    networks:
+      - odoo-network
+
+  # ---------------------------------------------------------------------------
+  # Odoo Container 1: Basic Setup (Core addons only)
+  # ---------------------------------------------------------------------------
+  odoo-basic:
+    image: jaah/odoo:15
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: odoo15-basic
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8069:8069"
+    volumes:
+      # Odoo data (filestore, sessions, logs)
+      - odoo-basic-data:/var/lib/odoo
+
+      # Shared addons from GitHubSyncer (READ-ONLY!)
+      - odoo-addons-shared:/opt/odoo/addons:ro
+
+      # Custom addons for this instance
+      - ./custom-addons:/mnt/extra-addons:ro
+    environment:
+      # User/Group IDs
+      PUID: 1000
+      PGID: 1000
+
+      # Database connection
+      conf.db_host: db
+      conf.db_port: 5432
+      conf.db_user: odoo
+      conf.db_password: odoo
+      conf.db_name: false
+      conf.db_template: template0
+
+      # Admin password
+      conf.admin_passwd: admin_secure_password_change_me
+
+      # Addons paths - Framework + odoo-core-addons from GitHubSyncer
+      conf.addons_path: "/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons"
+
+      # Data directory
+      conf.data_dir: /var/lib/odoo
+
+      # Logging (stored in data volume)
+      conf.logfile: /var/lib/odoo/logs/odoo.log
+      conf.log_level: info
+
+      # HTTP settings
+      conf.http_port: 8069
+      conf.longpolling_port: 8072
+      conf.proxy_mode: true
+      conf.workers: 4
+      conf.max_cron_threads: 2
+
+      # Limits
+      conf.limit_memory_hard: 2684354560
+      conf.limit_memory_soft: 2147483648
+      conf.limit_time_cpu: 600
+      conf.limit_time_real: 1200
+
+      # Database Initialization (disabled - create from Odoo UI after addons are synced)
+      INITDB_OPTIONS: ""
+
+      # Auto-Upgrade (disabled by default)
+      AUTO_UPGRADE: "FALSE"
+      ODOO_DB_NAME: ""
+    networks:
+      - odoo-network
+    labels:
+      # GitHubSyncer will restart this container when addons are updated
+      - "restart-after: odoo-addons-repo"
+
+  # ---------------------------------------------------------------------------
+  # Odoo Container 2: Full Setup (All addons)
+  # ---------------------------------------------------------------------------
+  odoo-full:
+    image: jaah/odoo:15
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: odoo15-full
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8070:8069"  # Different port
+    volumes:
+      # Odoo data (filestore, sessions, logs)
+      - odoo-full-data:/var/lib/odoo
+
+      # Shared addons from GitHubSyncer (READ-ONLY!)
+      - odoo-addons-shared:/opt/odoo/addons:ro
+
+      # Custom addons
+      - ./custom-addons:/mnt/extra-addons:ro
+    environment:
+      PUID: 1000
+      PGID: 1000
+
+      # Database connection
+      conf.db_host: db
+      conf.db_port: 5432
+      conf.db_user: odoo
+      conf.db_password: odoo
+      conf.db_name: false
+      conf.db_template: template0
+
+      # Admin password
+      conf.admin_passwd: admin_secure_password_change_me
+
+      # Addons paths - Framework + All shared addons + Custom
+      # You can organize /opt/odoo/addons into subdirectories:
+      # /opt/odoo/addons/core, /opt/odoo/addons/custom, /opt/odoo/addons/third-party
+      conf.addons_path: "/opt/odoo/odoo/addons,/opt/odoo/addons,/mnt/extra-addons"
+
+      # Data directory
+      conf.data_dir: /var/lib/odoo
+
+      # Logging (stored in data volume)
+      conf.logfile: /var/lib/odoo/logs/odoo.log
+      conf.log_level: info
+
+      # HTTP settings
+      conf.http_port: 8069
+      conf.longpolling_port: 8072
+      conf.proxy_mode: true
+      conf.workers: 4
+      conf.max_cron_threads: 2
+
+      # Limits
+      conf.limit_memory_hard: 2684354560
+      conf.limit_memory_soft: 2147483648
+      conf.limit_time_cpu: 600
+      conf.limit_time_real: 1200
+
+      # Database Initialization (disabled - create from Odoo UI after addons are synced)
+      INITDB_OPTIONS: ""
+
+      # Auto-Upgrade (disabled by default)
+      AUTO_UPGRADE: "FALSE"
+      ODOO_DB_NAME: ""
+    networks:
+      - odoo-network
+    labels:
+      # GitHubSyncer will restart this container when addons are updated
+      - "restart-after: odoo-addons-repo"
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # PostgreSQL data
+  odoo-db-data:
+    driver: local
+
+  # GitHubSyncer database
+  syncer-db-data:
+    driver: local
+
+  # GitHubSyncer data
+  syncer-data:
+    driver: local
+
+  # Shared addons volume (managed by GitHubSyncer)
+  odoo-addons-shared:
+    driver: local
+
+  # Odoo basic instance data (contains filestore, sessions, logs)
+  odoo-basic-data:
+    driver: local
+
+  # Odoo full instance data (contains filestore, sessions, logs)
+  odoo-full-data:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  odoo-network:
+    driver: bridge
+
+# =============================================================================
+# Usage Instructions:
+# =============================================================================
+# 1. Start the stack:
+#    docker compose -f docker-compose.githubsyncer.example.yml up -d
+#
+# 2. Access GitHubSyncer UI:
+#    http://localhost:5000
+#
+# 3. Configure GitHubSyncer:
+#    - Add repository: "odoo-addons-repo"
+#    - Set path: /app/repos/odoo-addons
+#    - Add GitHub webhook URL: http://your-server:8200/webhook/github
+#    - Discover containers and link them to the repository
+#
+# 4. Access Odoo instances:
+#    Basic: http://localhost:8069
+#    Full:  http://localhost:8070
+#
+# 5. Update addons:
+#    Push to GitHub → GitHubSyncer pulls → Restarts Odoo containers
+# =============================================================================

@@ -12,7 +12,6 @@ set -euo pipefail
 ERP_CONF_PATH="${ERP_CONF_PATH:-/etc/odoo/erp.conf}"
 ODOO_DATA_DIR="${ODOO_DATA_DIR:-/var/lib/odoo}"
 ODOO_SOURCE="${ODOO_SOURCE:-/opt/odoo}"
-STATE_DIR="${ODOO_DATA_DIR}/.state"
 PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
 
@@ -57,12 +56,7 @@ setup_user_permissions() {
     log_info "Fixing ownership of Odoo directories..."
     chown -R odoo:odoo "$ODOO_DATA_DIR" || true
     chown -R odoo:odoo /etc/odoo || true
-    chown -R odoo:odoo /var/log/odoo || true
     chown -R odoo:odoo /mnt/extra-addons 2>/dev/null || true
-
-    # Ensure state directory exists
-    mkdir -p "$STATE_DIR"
-    chown odoo:odoo "$STATE_DIR"
 
     log_info "User permissions configured successfully."
 }
@@ -100,12 +94,11 @@ generate_config() {
 }
 
 # -----------------------------------------------------------------------------
-# Step 3: One-Time Python Package Installation (PY_INSTALL)
-# Only runs once per instance (state tracked in volume)
+# Step 3: Python Package Installation (PY_INSTALL)
+# Checks if packages are installed at each startup (stateless)
 # -----------------------------------------------------------------------------
 install_python_packages() {
     local py_install="${PY_INSTALL:-}"
-    local state_file="${STATE_DIR}/py_install.done"
 
     # Skip if PY_INSTALL is empty
     if [ -z "$py_install" ]; then
@@ -113,36 +106,67 @@ install_python_packages() {
         return 0
     fi
 
-    # Skip if already installed (state file exists)
-    if [ -f "$state_file" ]; then
-        log_info "Python packages already installed (found ${state_file}), skipping."
-        return 0
-    fi
+    log_info "Checking Python packages: ${py_install}..."
 
-    log_info "Installing Python packages: ${py_install}..."
+    # Check each package to see if it needs installation
+    local needs_install=false
+    IFS=',' read -ra PKG_ARRAY <<< "$py_install"
 
-    # Convert comma-separated list to space-separated for pip
-    local packages="${py_install//,/ }"
+    for pkg in "${PKG_ARRAY[@]}"; do
+        pkg=$(echo "$pkg" | xargs)  # Trim whitespace
 
-    # Install packages
-    if pip install --no-cache-dir $packages; then
-        # Mark as done
-        touch "$state_file"
-        chown odoo:odoo "$state_file"
-        log_info "Python packages installed successfully."
+        if [ -z "$pkg" ]; then
+            continue
+        fi
+
+        # Extract package name and version if specified
+        if [[ "$pkg" == *"=="* ]]; then
+            local pkg_name="${pkg%%==*}"
+            local pkg_version="${pkg#*==}"
+
+            # Check if installed with correct version
+            if pip show "$pkg_name" 2>/dev/null | grep -q "Version: $pkg_version"; then
+                log_info "  ✓ $pkg already installed"
+            else
+                log_info "  ✗ $pkg needs installation/upgrade"
+                needs_install=true
+            fi
+        else
+            # No version specified, just check if installed
+            if pip show "$pkg" &>/dev/null; then
+                local installed_version=$(pip show "$pkg" 2>/dev/null | grep "Version:" | awk '{print $2}')
+                log_info "  ✓ $pkg already installed (version: $installed_version)"
+            else
+                log_info "  ✗ $pkg needs installation"
+                needs_install=true
+            fi
+        fi
+    done
+
+    # Install only if needed
+    if [ "$needs_install" = true ]; then
+        log_info "Installing Python packages: ${py_install}..."
+
+        # Convert comma-separated list to space-separated for pip
+        local packages="${py_install//,/ }"
+
+        if pip install --no-cache-dir $packages; then
+            log_info "Python packages installed successfully."
+        else
+            log_error "Failed to install Python packages!"
+            return 1
+        fi
     else
-        log_error "Failed to install Python packages!"
-        return 1
+        log_info "All Python packages already installed."
     fi
 }
 
 # -----------------------------------------------------------------------------
-# Step 4: One-Time NPM Package Installation (NPM_INSTALL)
-# Only runs once per instance (state tracked in volume)
+# Step 4: NPM Package Installation (NPM_INSTALL)
+# Checks if packages are installed at each startup (stateless)
 # -----------------------------------------------------------------------------
 install_npm_packages() {
     local npm_install="${NPM_INSTALL:-}"
-    local state_file="${STATE_DIR}/npm_install.done"
 
     # Skip if NPM_INSTALL is empty
     if [ -z "$npm_install" ]; then
@@ -150,26 +174,45 @@ install_npm_packages() {
         return 0
     fi
 
-    # Skip if already installed (state file exists)
-    if [ -f "$state_file" ]; then
-        log_info "NPM packages already installed (found ${state_file}), skipping."
-        return 0
-    fi
+    log_info "Checking NPM packages: ${npm_install}..."
 
-    log_info "Installing NPM packages: ${npm_install}..."
+    # Check each package to see if it needs installation
+    local needs_install=false
+    IFS=',' read -ra PKG_ARRAY <<< "$npm_install"
 
-    # Convert comma-separated list to space-separated for npm
-    local packages="${npm_install//,/ }"
+    for pkg in "${PKG_ARRAY[@]}"; do
+        pkg=$(echo "$pkg" | xargs)  # Trim whitespace
 
-    # Install packages globally
-    if npm install -g $packages; then
-        # Mark as done
-        touch "$state_file"
-        chown odoo:odoo "$state_file"
-        log_info "NPM packages installed successfully."
+        if [ -z "$pkg" ]; then
+            continue
+        fi
+
+        # Check if package is installed globally
+        if npm list -g "$pkg" --depth=0 &>/dev/null; then
+            local installed_version=$(npm list -g "$pkg" --depth=0 2>/dev/null | grep "$pkg" | sed -n 's/.*@\([0-9.]*\).*/\1/p')
+            log_info "  ✓ $pkg already installed (version: $installed_version)"
+        else
+            log_info "  ✗ $pkg needs installation"
+            needs_install=true
+        fi
+    done
+
+    # Install only if needed
+    if [ "$needs_install" = true ]; then
+        log_info "Installing NPM packages: ${npm_install}..."
+
+        # Convert comma-separated list to space-separated for npm
+        local packages="${npm_install//,/ }"
+
+        # Install packages globally
+        if npm install -g $packages; then
+            log_info "NPM packages installed successfully."
+        else
+            log_error "Failed to install NPM packages!"
+            return 1
+        fi
     else
-        log_error "Failed to install NPM packages!"
-        return 1
+        log_info "All NPM packages already installed."
     fi
 }
 
@@ -206,7 +249,7 @@ initialize_database() {
 # click-odoo-update handles module hashing internally
 # -----------------------------------------------------------------------------
 run_auto_upgrade() {
-    local auto_upgrade="${AUTO_UPGRADE:-FALSE}"
+    local auto_upgrade="${AUTO_UPGRADE:-TRUE}"
     local db_name="${ODOO_DB_NAME:-}"
 
     # Convert to uppercase for comparison
@@ -218,22 +261,58 @@ run_auto_upgrade() {
         return 0
     fi
 
-    # Skip if ODOO_DB_NAME is not set
+    # Auto-detect database if not specified
     if [ -z "$db_name" ]; then
-        log_warn "AUTO_UPGRADE is TRUE but ODOO_DB_NAME is not set, skipping upgrade."
-        return 0
+        log_info "ODOO_DB_NAME not set, auto-detecting Odoo database..."
+
+        # Get database connection details from conf.* environment variables
+        local db_host=$(printenv 'conf.db_host' || echo 'db')
+        local db_port=$(printenv 'conf.db_port' || echo '5432')
+        local db_user=$(printenv 'conf.db_user' || echo 'odoo')
+        local db_password=$(printenv 'conf.db_password' || echo 'odoo')
+
+        # Find first non-system database
+        db_name=$(PGPASSWORD="$db_password" psql -h "$db_host" -p "$db_port" -U "$db_user" -d postgres -t -c \
+            "SELECT datname FROM pg_database WHERE datname NOT IN ('postgres', 'template0', 'template1') ORDER BY datname LIMIT 1;" \
+            2>/dev/null | xargs)
+
+        if [ -z "$db_name" ]; then
+            log_info "No Odoo database found yet, skipping automatic upgrade."
+            return 0
+        fi
+
+        log_info "Auto-detected database: ${db_name}"
     fi
 
-    log_info "Running click-odoo-update for database: ${db_name}..."
+    log_info "Checking for modules that need upgrade in database: ${db_name}..."
 
-    # Run click-odoo-update as odoo user
-    # click-odoo-update handles module hashing internally and only upgrades changed modules
-    if gosu odoo click-odoo-update -c "$ERP_CONF_PATH" -d "$db_name"; then
-        log_info "Automatic upgrade completed successfully."
+    # First, list modules that will be upgraded (without actually upgrading)
+    # This gives visibility into what changes will be applied
+    log_info "=== Modules to be upgraded ==="
+    if gosu odoo click-odoo-update -c "$ERP_CONF_PATH" -d "$db_name" --list-only 2>&1 | tee /tmp/upgrade-list.log; then
+        log_info "=== End of modules list ==="
+
+        # Check if there are any modules to upgrade
+        if grep -q "to update" /tmp/upgrade-list.log 2>/dev/null; then
+            log_info "Running automatic upgrade with translation overwrite..."
+
+            # Run actual upgrade with --i18n-overwrite to update translations
+            # This ensures translations are kept up-to-date with module changes
+            if gosu odoo click-odoo-update -c "$ERP_CONF_PATH" -d "$db_name" --i18n-overwrite; then
+                log_info "Automatic upgrade completed successfully."
+            else
+                local exit_code=$?
+                log_warn "click-odoo-update exited with code ${exit_code}. Continuing startup..."
+            fi
+        else
+            log_info "No modules need upgrading. System is up-to-date."
+        fi
     else
-        local exit_code=$?
-        log_warn "click-odoo-update exited with code ${exit_code}. Continuing startup..."
+        log_warn "Failed to check modules list. Skipping upgrade."
     fi
+
+    # Cleanup
+    rm -f /tmp/upgrade-list.log
 }
 
 # -----------------------------------------------------------------------------

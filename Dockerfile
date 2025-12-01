@@ -134,24 +134,40 @@ RUN set -eux; \
              /etc/odoo \
              /var/lib/odoo \
              /var/lib/odoo/.state \
-             /var/log/odoo \
              /mnt/extra-addons; \
-    chown -R odoo:odoo /opt/odoo /etc/odoo /var/lib/odoo /var/log/odoo /mnt/extra-addons
+    chown -R odoo:odoo /opt/odoo /etc/odoo /var/lib/odoo /mnt/extra-addons
 
 # -----------------------------------------------------------------------------
 # Clone Odoo 15 Source Code
+# Using autocme/odoo-core - optimized minimal Odoo core without addons/docs/tests
 # -----------------------------------------------------------------------------
 RUN set -eux; \
     git clone --depth 1 --branch ${ODOO_VERSION} \
-        https://github.com/odoo/odoo.git /opt/odoo; \
+        https://github.com/autocme/odoo-core.git /opt/odoo; \
+    # Note: This repo already excludes /opt/odoo/addons
+    # Only contains /opt/odoo/odoo (framework) which is required
+    # Create addons directory for external volume mount
+    mkdir -p /opt/odoo/addons; \
     chown -R odoo:odoo /opt/odoo
 
 # -----------------------------------------------------------------------------
 # Install Odoo Python Dependencies
 # -----------------------------------------------------------------------------
 RUN set -eux; \
-    pip install --no-cache-dir --upgrade pip setuptools wheel; \
-    pip install --no-cache-dir -r /opt/odoo/requirements.txt; \
+    pip install --no-cache-dir --upgrade pip wheel; \
+    # Pin setuptools to avoid pkg_resources deprecation warning
+    pip install --no-cache-dir "setuptools<81"; \
+    # Install Python 3.10 compatible versions first (before requirements.txt)
+    # This prevents pip from trying to build old incompatible versions
+    pip install --no-cache-dir \
+        greenlet==3.0.3 \
+        gevent==23.9.1 \
+        reportlab==3.6.13 \
+        Pillow==9.5.0; \
+    # Remove incompatible packages from requirements.txt
+    grep -v -E "^(gevent|reportlab|Pillow|greenlet)==" /opt/odoo/requirements.txt > /tmp/requirements-filtered.txt; \
+    # Install remaining requirements (incompatible ones already satisfied)
+    pip install --no-cache-dir -r /tmp/requirements-filtered.txt; \
     # Install additional common dependencies for Odoo 15
     pip install --no-cache-dir \
         phonenumbers \
@@ -174,8 +190,9 @@ RUN set -eux; \
 
 # -----------------------------------------------------------------------------
 # Set Odoo in PYTHONPATH so 'import odoo' works for click-odoo
+# Use ${PYTHONPATH:-} for default empty value to avoid buildkit warning
 # -----------------------------------------------------------------------------
-ENV PYTHONPATH="${ODOO_SOURCE}:${PYTHONPATH}"
+ENV PYTHONPATH="${ODOO_SOURCE}:${PYTHONPATH:-}"
 
 # -----------------------------------------------------------------------------
 # Copy entrypoint script
@@ -194,8 +211,10 @@ EXPOSE 8069 8071 8072
 
 # -----------------------------------------------------------------------------
 # Define volumes
+# Note: /opt/odoo/addons removed - we use /mnt/synced-addons from GitHubSyncer
+# Note: Logs are stored in /var/lib/odoo/logs/ (part of odoo-data volume)
 # -----------------------------------------------------------------------------
-VOLUME ["/var/lib/odoo", "/mnt/extra-addons", "/var/log/odoo"]
+VOLUME ["/var/lib/odoo", "/mnt/extra-addons"]
 
 # -----------------------------------------------------------------------------
 # Healthcheck
