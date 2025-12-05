@@ -80,6 +80,7 @@ RUN set -eux; \
         unzip \
         sudo \
         gosu \
+        nano \
     ; \
     rm -rf /var/lib/apt/lists/*
 
@@ -178,7 +179,10 @@ RUN set -eux; \
         num2words \
         passlib \
         pyopenssl \
-        polib
+        polib \
+        paramiko==2.10.3; \
+    # Install arabic-currency-to-word from GitHub
+    pip install --no-cache-dir git+https://github.com/ISKO0/arabic-currency-to-word.git
 
 # -----------------------------------------------------------------------------
 # Install click-odoo and click-odoo-contrib
